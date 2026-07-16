@@ -31,3 +31,13 @@ The Rust core + C FFI live in the `../ezvpn` repo (`src/ffi_windows.rs`,
 - Use classic `[DllImport]` (not `[LibraryImport]`) for the `advapi32`
   Credential Manager calls — the `CREDENTIAL` struct isn't source-gen
   marshallable.
+- Icons: `assets\icon.svg` (the shield/keyhole glyph, shared with ezvpn-apple) is
+  the source of truth. `scripts\render-icons.ps1` renders it to the committed
+  `src\Ezvpn.App\Assets\ezvpn.ico` (multi-size) via GDI+ — re-run it (needs
+  Windows PowerShell 5.1) only when the SVG changes; CI just uses the committed
+  `.ico`. It's the `.exe` icon (`<ApplicationIcon>`), the title-bar icon
+  (`AppWindow.SetIcon`), and the tray icon.
+- The system tray (`Services\TrayIcon.cs`) is hand-rolled on `Shell_NotifyIcon`
+  (WinUI 3 has no tray API): it subclasses the window's WndProc for callbacks and
+  uses a native `TrackPopupMenuEx` menu. Closing the window hides to the tray;
+  only the tray's Quit exits the process.

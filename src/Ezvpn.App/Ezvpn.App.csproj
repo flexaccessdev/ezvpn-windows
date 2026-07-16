@@ -21,6 +21,9 @@
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <EnableMsixTooling>false</EnableMsixTooling>
+    <!-- Embeds the icon as the .exe's Win32 icon (taskbar, Alt-Tab, Explorer).
+         Generated from assets\icon.svg by scripts\render-icons.ps1. -->
+    <ApplicationIcon>Assets\ezvpn.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -29,6 +32,16 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Ezvpn.Core\Ezvpn.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Ship the .ico beside the .exe so it can be loaded at runtime for the
+       window title-bar icon (AppWindow.SetIcon) and the system-tray icon. It is
+       copied into the publish output, so the MSI (which harvests PublishDir)
+       includes it. -->
+  <ItemGroup>
+    <Content Include="Assets\ezvpn.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <!-- Native DLLs (ezvpn.dll, wintun.dll) are resolved at RUNTIME (P/Invoke), so
