@@ -1,13 +1,14 @@
 name: release
 
 on:
-  push:
-    tags: ["v*"]
+  # Self-tagged prerelease builds: each run mints its own timestamp+hash tag
+  # (see "Determine version"), so there is no v* tag trigger.
   workflow_dispatch:
     inputs:
       version:
-        description: "Version (e.g. 0.1.0)"
-        required: true
+        description: "MSI ProductVersion (numeric, e.g. 0.1.0). The release tag is always yyyymmddhhmmss-<short-sha>."
+        required: false
+        default: "0.0.0"
 
 jobs:
   release-msi:
@@ -41,13 +42,18 @@ jobs:
         shell: pwsh
         run: |
           $v = "${{ github.event.inputs.version }}"
-          if (-not $v) { $v = "${{ github.ref_name }}" -replace '^v', '' }
+          if (-not $v) { $v = "0.0.0" }
           # Normalize to a 4-part MSI ProductVersion.
           $parts = $v.Split('.')
           while ($parts.Count -lt 4) { $parts += '0' }
           $product = ($parts[0..3] -join '.')
+          # Release tag: UTC timestamp + short commit hash, always a prerelease.
+          $sha = "${{ github.sha }}".Substring(0, 7)
+          $ts = (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss')
+          $tag = "$ts-$sha"
           "version=$v"            >> $env:GITHUB_OUTPUT
           "product=$product"      >> $env:GITHUB_OUTPUT
+          "release_tag=$tag"      >> $env:GITHUB_OUTPUT
 
       - name: Build ezvpn.dll
         shell: pwsh
@@ -81,7 +87,7 @@ jobs:
           $pub = (Resolve-Path publish).Path
           dotnet build gui/installer/Ezvpn.Installer.wixproj `
             -c Release "-p:PublishDir=$pub" "-p:ProductVersion=${{ steps.ver.outputs.product }}"
-          Copy-Item gui/installer/bin/Release/ezvpn.msi "ezvpn-${{ steps.ver.outputs.version }}.msi"
+          Copy-Item gui/installer/bin/Release/ezvpn.msi "ezvpn-${{ steps.ver.outputs.release_tag }}.msi"
 
       - name: Upload MSI artifact
         uses: actions/upload-artifact@v4
@@ -89,8 +95,13 @@ jobs:
           name: ezvpn-msi
           path: ezvpn-*.msi
 
-      - name: Attach MSI to release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Publish prerelease
+        # Always a prerelease, tagged yyyymmddhhmmss-<short-sha>. The tag is created
+        # on the triggering commit if it does not already exist.
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.ver.outputs.release_tag }}
+          name: ${{ steps.ver.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
           files: ezvpn-*.msi
