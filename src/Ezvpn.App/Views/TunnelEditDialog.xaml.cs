@@ -31,7 +31,7 @@ public sealed partial class TunnelEditDialog : ContentDialog
     }
 
     /// <summary>Build a brand-new profile and its token from the form (for Add).</summary>
-    public (TunnelProfile Profile, string? Token) BuildResult()
+    public (TunnelProfile Profile, string Token) BuildResult()
     {
         var profile = new TunnelProfile();
         var token = ApplyTo(profile);
@@ -39,8 +39,8 @@ public sealed partial class TunnelEditDialog : ContentDialog
     }
 
     /// <summary>
-    /// Write the form into <paramref name="profile"/> and return the token text
-    /// (empty string means "clear the stored token").
+    /// Write the form into <paramref name="profile"/> and return the (required)
+    /// auth token text. Validation guarantees it is non-blank before Save.
     /// </summary>
     public string ApplyTo(TunnelProfile profile)
     {
@@ -82,6 +82,12 @@ public sealed partial class TunnelEditDialog : ContentDialog
         if (nodeError is not null)
         {
             return nodeError;
+        }
+
+        var tokenError = TunnelValidation.ValidateAuthToken(TokenBox.Password);
+        if (tokenError is not null)
+        {
+            return tokenError;
         }
 
         var routes4 = TunnelValidation.SplitList(RoutesBox.Text);

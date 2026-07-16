@@ -19,7 +19,7 @@ public class EzvpnConfigTests
             AutoReconnect = true,
         };
 
-        var json = EzvpnConfig.Build(profile, authToken: null);
+        var json = EzvpnConfig.Build(profile, "tok");
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
@@ -29,8 +29,7 @@ public class EzvpnConfigTests
         Assert.True(root.GetProperty("auto_reconnect").GetBoolean());
         Assert.False(root.GetProperty("relay_only").GetBoolean());
         Assert.Equal(profile.Instance, root.GetProperty("instance").GetString());
-        // Null token / dns / max attempts are omitted, not emitted as null.
-        Assert.False(root.TryGetProperty("auth_token", out _));
+        // Null dns / max attempts are omitted, not emitted as null.
         Assert.False(root.TryGetProperty("dns_server", out _));
         Assert.False(root.TryGetProperty("max_reconnect_attempts", out _));
     }
@@ -55,12 +54,12 @@ public class EzvpnConfigTests
     }
 
     [Fact]
-    public void Build_BlankToken_IsOmitted()
+    public void Build_BlankOrNullToken_Throws()
     {
         var profile = new TunnelProfile { ServerNodeId = "node" };
-        var json = EzvpnConfig.Build(profile, "   ");
-        using var doc = JsonDocument.Parse(json);
-        Assert.False(doc.RootElement.TryGetProperty("auth_token", out _));
+        Assert.Throws<ArgumentException>(() => EzvpnConfig.Build(profile, null));
+        Assert.Throws<ArgumentException>(() => EzvpnConfig.Build(profile, ""));
+        Assert.Throws<ArgumentException>(() => EzvpnConfig.Build(profile, "   "));
     }
 
     [Fact]

@@ -44,34 +44,21 @@ public sealed class TunnelsManager : ObservableObject
 
     // --- Profile CRUD ---------------------------------------------------------
 
-    /// <summary>Add a new profile (with its secret token) and persist it.</summary>
-    public TunnelViewModel Add(TunnelProfile profile, string? authToken)
+    /// <summary>Add a new profile with its required secret token and persist it.</summary>
+    public TunnelViewModel Add(TunnelProfile profile, string authToken)
     {
         _store.Save(profile);
-        if (!string.IsNullOrWhiteSpace(authToken))
-        {
-            TokenStore.Save(profile.Id, authToken!);
-        }
+        TokenStore.Save(profile.Id, authToken);
         var vm = new TunnelViewModel(profile);
         Tunnels.Add(vm);
         return vm;
     }
 
-    /// <summary>Persist edits to an existing profile; updates its token if provided.</summary>
-    public void Update(TunnelViewModel vm, string? authToken)
+    /// <summary>Persist edits to an existing profile and its required token.</summary>
+    public void Update(TunnelViewModel vm, string authToken)
     {
         _store.Save(vm.Profile);
-        if (authToken is not null)
-        {
-            if (string.IsNullOrWhiteSpace(authToken))
-            {
-                TokenStore.Delete(vm.Profile.Id);
-            }
-            else
-            {
-                TokenStore.Save(vm.Profile.Id, authToken);
-            }
-        }
+        TokenStore.Save(vm.Profile.Id, authToken);
         vm.NotifyProfileChanged();
     }
 

@@ -23,6 +23,15 @@ public class TunnelValidationTests
         Assert.Null(TunnelValidation.ValidateServerNodeId("k51qzi5uqu5d"));
     }
 
+    [Fact]
+    public void ValidateAuthToken_IsRequired()
+    {
+        Assert.NotNull(TunnelValidation.ValidateAuthToken(null));
+        Assert.NotNull(TunnelValidation.ValidateAuthToken(""));
+        Assert.NotNull(TunnelValidation.ValidateAuthToken("   "));
+        Assert.Null(TunnelValidation.ValidateAuthToken("v0123456789"));
+    }
+
     [Theory]
     [InlineData("10.0.0.0/8", false, true)]
     [InlineData("0.0.0.0/0", false, true)]

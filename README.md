@@ -131,8 +131,8 @@ lets `native.targets` download + SHA256-verify `wintun.dll` during publish.
 ## Usage
 
 1. Launch ezvpn (accept the UAC prompt).
-2. **+** to add a profile: give it a name, the server's iroh node id, an optional
-   auth token, and optional split-tunnel routes (`10.0.0.0/8`, `fd00::/8`, …).
+2. **+** to add a profile: give it a name, the server's iroh node id, the auth
+   token (required), and optional split-tunnel routes (`10.0.0.0/8`, `fd00::/8`, …).
 3. Select it and **Connect**. The status panel shows the assigned IP, gateway,
    routes, and the live iroh connection path once connected.
 4. **Disconnect** tears down the tunnel and routes.

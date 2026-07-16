@@ -53,6 +53,19 @@ public static class TunnelValidation
         return null;
     }
 
+    /// <summary>
+    /// Validate the auth token. It is required — a null/blank token returns an
+    /// error message; otherwise null.
+    /// </summary>
+    public static string? ValidateAuthToken(string? token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return "Auth token is required.";
+        }
+        return null;
+    }
+
     /// <summary>Validate a single CIDR string for the given family. Null = valid.</summary>
     public static string? ValidateCidr(string? cidr, bool ipv6)
     {

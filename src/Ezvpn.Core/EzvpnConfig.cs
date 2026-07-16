@@ -16,16 +16,21 @@ public static class EzvpnConfig
     };
 
     /// <summary>
-    /// Serialize <paramref name="profile"/> plus its resolved <paramref name="authToken"/>
-    /// into the <c>ezvpn_start</c> config JSON. A null/blank token is omitted
-    /// (the server may allow token-less auth).
+    /// Serialize <paramref name="profile"/> plus its <paramref name="authToken"/>
+    /// into the <c>ezvpn_start</c> config JSON. The auth token is required; a
+    /// null/blank token throws <see cref="ArgumentException"/>.
     /// </summary>
     public static string Build(TunnelProfile profile, string? authToken)
     {
+        if (string.IsNullOrWhiteSpace(authToken))
+        {
+            throw new ArgumentException("An auth token is required.", nameof(authToken));
+        }
+
         var dto = new StartConfigDto
         {
             ServerNodeId = profile.ServerNodeId,
-            AuthToken = string.IsNullOrWhiteSpace(authToken) ? null : authToken,
+            AuthToken = authToken,
             RelayUrls = profile.RelayUrls,
             RelayOnly = false,
             DnsServer = string.IsNullOrWhiteSpace(profile.DnsServer) ? null : profile.DnsServer,
