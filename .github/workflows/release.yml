@@ -1,0 +1,114 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. 0.1.0)"
+        required: true
+
+env:
+  # Pinned wintun (official WireGuard project). Override the checksum here when
+  # bumping the version. Leave WINTUN_SHA256 blank to skip verification.
+  WINTUN_VERSION: "0.14.1"
+  WINTUN_SHA256: ""
+
+jobs:
+  release-msi:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout ezvpn-windows
+        uses: actions/checkout@v4
+        with:
+          path: gui
+
+      - name: Checkout ezvpn core (Rust)
+        uses: actions/checkout@v4
+        with:
+          repository: andrewtheguy/ezvpn
+          path: core
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Determine version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = "${{ github.event.inputs.version }}"
+          if (-not $v) { $v = "${{ github.ref_name }}" -replace '^v', '' }
+          # Normalize to a 4-part MSI ProductVersion.
+          $parts = $v.Split('.')
+          while ($parts.Count -lt 4) { $parts += '0' }
+          $product = ($parts[0..3] -join '.')
+          "version=$v"            >> $env:GITHUB_OUTPUT
+          "product=$product"      >> $env:GITHUB_OUTPUT
+
+      - name: Build ezvpn.dll
+        shell: pwsh
+        working-directory: core
+        run: ./build-windows.ps1 -Profile release -Target x86_64-pc-windows-msvc
+
+      - name: Fetch wintun.dll
+        shell: pwsh
+        run: |
+          $url = "https://www.wintun.net/builds/wintun-$($env:WINTUN_VERSION).zip"
+          Invoke-WebRequest -Uri $url -OutFile wintun.zip
+          if ($env:WINTUN_SHA256) {
+            $hash = (Get-FileHash wintun.zip -Algorithm SHA256).Hash.ToLower()
+            if ($hash -ne $env:WINTUN_SHA256.ToLower()) {
+              throw "wintun.zip sha256 mismatch: got $hash"
+            }
+          } else {
+            Write-Host "WINTUN_SHA256 unset; skipping checksum verification (hash: $((Get-FileHash wintun.zip -Algorithm SHA256).Hash))"
+          }
+          Expand-Archive wintun.zip -DestinationPath wintun-extract -Force
+
+      - name: Stage native DLLs
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path gui/native | Out-Null
+          Copy-Item core/dist/windows/ezvpn.dll gui/native/ezvpn.dll -Force
+          Copy-Item wintun-extract/wintun/bin/amd64/wintun.dll gui/native/wintun.dll -Force
+          Get-ChildItem gui/native
+
+      - name: Publish app (self-contained)
+        shell: pwsh
+        run: |
+          dotnet publish gui/src/Ezvpn.App/Ezvpn.App.csproj `
+            -c Release -r win-x64 --self-contained `
+            -o publish
+          # Sanity: the native DLLs must have been copied in.
+          if (-not (Test-Path publish/ezvpn.dll)) { throw "ezvpn.dll missing from publish" }
+          if (-not (Test-Path publish/wintun.dll)) { throw "wintun.dll missing from publish" }
+
+      - name: Build MSI
+        shell: pwsh
+        run: |
+          $pub = (Resolve-Path publish).Path
+          dotnet build gui/installer/Ezvpn.Installer.wixproj `
+            -c Release "-p:PublishDir=$pub" "-p:ProductVersion=${{ steps.ver.outputs.product }}"
+          Copy-Item gui/installer/bin/Release/ezvpn.msi "ezvpn-${{ steps.ver.outputs.version }}.msi"
+
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ezvpn-msi
+          path: ezvpn-*.msi
+
+      - name: Attach MSI to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ezvpn-*.msi

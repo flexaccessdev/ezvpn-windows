@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Ezvpn.App/Ezvpn.App.csproj" />
+    <Project Path="src/Ezvpn.Core/Ezvpn.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Ezvpn.Core.Tests/Ezvpn.Core.Tests.csproj" />
+  </Folder>
+</Solution>

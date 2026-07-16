@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="Ezvpn.App.Views.TunnelEditDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    PrimaryButtonText="Save"
+    CloseButtonText="Cancel"
+    DefaultButton="Primary"
+    PrimaryButtonClick="OnPrimaryButtonClick">
+
+    <ScrollViewer>
+        <StackPanel Spacing="12" MinWidth="420">
+
+            <InfoBar x:Name="ErrorBar" IsOpen="False" Severity="Error"
+                     IsClosable="False" Title="Invalid profile" />
+
+            <TextBox x:Name="NameBox" Header="Name" PlaceholderText="e.g. work" />
+
+            <TextBox x:Name="NodeIdBox" Header="Server node id"
+                     PlaceholderText="iroh endpoint id" TextWrapping="Wrap" AcceptsReturn="False" />
+
+            <PasswordBox x:Name="TokenBox" Header="Auth token (optional)" />
+
+            <TextBox x:Name="RelayBox" Header="Relay URLs (optional, one per line)"
+                     AcceptsReturn="True" TextWrapping="Wrap" Height="60" />
+
+            <TextBox x:Name="RoutesBox" Header="IPv4 routes (CIDR, comma/space/line separated)"
+                     AcceptsReturn="True" TextWrapping="Wrap" Height="60"
+                     PlaceholderText="10.0.0.0/8" />
+
+            <TextBox x:Name="Routes6Box" Header="IPv6 routes (CIDR)"
+                     AcceptsReturn="True" TextWrapping="Wrap" Height="60"
+                     PlaceholderText="fd00::/8" />
+
+            <TextBox x:Name="DnsBox" Header="Discovery DNS server (optional; 'none' to disable)" />
+
+            <NumberBox x:Name="MaxAttemptsBox" Header="Max reconnect attempts (blank = unlimited)"
+                       SpinButtonPlacementMode="Compact" Minimum="1" />
+
+            <CheckBox x:Name="AutoReconnectCheck" Content="Reconnect automatically" IsChecked="True" />
+
+        </StackPanel>
+    </ScrollViewer>
+</ContentDialog>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <!--
+    Per-machine MSI for the ezvpn Windows GUI. Bundles the self-contained
+    WinUI 3 app (published into $(var.PublishDir)) together with the native
+    ezvpn.dll and wintun.dll that were staged there. Unsigned by design
+    (development-signed personal use, matching the Apple app).
+  -->
+  <Package
+      Name="ezvpn"
+      Manufacturer="ezvpn"
+      Version="$(var.ProductVersion)"
+      UpgradeCode="7b2e1e6c-3c9a-4d1e-9c2a-2a1f0b9d4e10"
+      Scope="perMachine"
+      Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of ezvpn is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Install into %ProgramFiles%\ezvpn. -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="ezvpn" />
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="ezvpn" Level="1">
+      <!-- Auto-harvest the whole publish output (app + WindowsAppRuntime +
+           ezvpn.dll + wintun.dll) into INSTALLFOLDER. -->
+      <Files Directory="INSTALLFOLDER" Include="$(var.PublishDir)\**" />
+      <ComponentGroupRef Id="ShortcutComponents" />
+    </Feature>
+
+    <!-- Start-menu shortcut. -->
+    <ComponentGroup Id="ShortcutComponents">
+      <Component Directory="ProgramMenuFolder" Id="StartMenuShortcut" Guid="a4c8f0d2-9b17-4e3a-8f6b-1d2c3e4f5a6b">
+        <Shortcut Id="EzvpnShortcut"
+                  Name="ezvpn"
+                  Description="ezvpn VPN client"
+                  Target="[INSTALLFOLDER]Ezvpn.App.exe"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKCU" Key="Software\ezvpn" Name="installed"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+  </Package>
+</Wix>

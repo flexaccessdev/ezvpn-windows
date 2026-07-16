@@ -1,0 +1,73 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace Ezvpn.Core;
+
+/// <summary>
+/// Builds the JSON config string passed to <c>ezvpn_start</c> (the shape defined
+/// in <c>windows/ezvpn.h</c> / <c>src/ffi_windows.rs</c>). Kept separate from
+/// <see cref="TunnelProfile"/> so the FFI wire shape is explicit and testable.
+/// </summary>
+public static class EzvpnConfig
+{
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
+    /// <summary>
+    /// Serialize <paramref name="profile"/> plus its resolved <paramref name="authToken"/>
+    /// into the <c>ezvpn_start</c> config JSON. A null/blank token is omitted
+    /// (the server may allow token-less auth).
+    /// </summary>
+    public static string Build(TunnelProfile profile, string? authToken)
+    {
+        var dto = new StartConfigDto
+        {
+            ServerNodeId = profile.ServerNodeId,
+            AuthToken = string.IsNullOrWhiteSpace(authToken) ? null : authToken,
+            RelayUrls = profile.RelayUrls,
+            RelayOnly = false,
+            DnsServer = string.IsNullOrWhiteSpace(profile.DnsServer) ? null : profile.DnsServer,
+            Routes = profile.Routes,
+            Routes6 = profile.Routes6,
+            Instance = profile.Instance,
+            AutoReconnect = profile.AutoReconnect,
+            MaxReconnectAttempts = profile.MaxReconnectAttempts,
+        };
+        return JsonSerializer.Serialize(dto, Options);
+    }
+
+    private sealed class StartConfigDto
+    {
+        [JsonPropertyName("server_node_id")]
+        public string ServerNodeId { get; set; } = "";
+
+        [JsonPropertyName("auth_token")]
+        public string? AuthToken { get; set; }
+
+        [JsonPropertyName("relay_urls")]
+        public List<string> RelayUrls { get; set; } = new();
+
+        [JsonPropertyName("relay_only")]
+        public bool RelayOnly { get; set; }
+
+        [JsonPropertyName("dns_server")]
+        public string? DnsServer { get; set; }
+
+        [JsonPropertyName("routes")]
+        public List<string> Routes { get; set; } = new();
+
+        [JsonPropertyName("routes6")]
+        public List<string> Routes6 { get; set; } = new();
+
+        [JsonPropertyName("instance")]
+        public string Instance { get; set; } = "default";
+
+        [JsonPropertyName("auto_reconnect")]
+        public bool AutoReconnect { get; set; } = true;
+
+        [JsonPropertyName("max_reconnect_attempts")]
+        public uint? MaxReconnectAttempts { get; set; }
+    }
+}

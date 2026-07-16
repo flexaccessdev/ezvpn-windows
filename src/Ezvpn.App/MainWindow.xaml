@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="Ezvpn.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid x:Name="RootGrid" Padding="0">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Left: profile list + toolbar -->
+        <Grid Grid.Column="0" Background="{ThemeResource LayerFillColorDefaultBrush}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Text="ezvpn" Margin="16,16,16,8"
+                       Style="{ThemeResource TitleTextBlockStyle}" />
+
+            <ListView x:Name="TunnelList" Grid.Row="1"
+                      ItemsSource="{Binding Tunnels}"
+                      SelectionChanged="TunnelList_SelectionChanged"
+                      Margin="4,0">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="8,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding StateText}"
+                                       Style="{ThemeResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="12">
+                <Button x:Name="AddButton" Click="AddButton_Click" ToolTipService.ToolTip="Add profile">
+                    <FontIcon Glyph="&#xE710;" FontFamily="Segoe MDL2 Assets" />
+                </Button>
+                <Button x:Name="DeleteButton" Click="DeleteButton_Click" ToolTipService.ToolTip="Delete profile">
+                    <FontIcon Glyph="&#xE74D;" FontFamily="Segoe MDL2 Assets" />
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- Right: detail for the selected profile -->
+        <ScrollViewer Grid.Column="1" Padding="24"
+                      DataContext="{Binding SelectedItem, ElementName=TunnelList}">
+            <StackPanel x:Name="DetailPanel" Spacing="16" MaxWidth="640" HorizontalAlignment="Left">
+
+                <TextBlock Text="{Binding Name}" Style="{ThemeResource TitleTextBlockStyle}" />
+
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="Status:" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Text="{Binding StateText}" />
+                </StackPanel>
+
+                <InfoBar IsOpen="{Binding HasError}" Severity="Error"
+                         Title="Connection error" Message="{Binding ErrorText}"
+                         IsClosable="False" />
+
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="ConnectButton" Content="Connect"
+                            Style="{ThemeResource AccentButtonStyle}"
+                            IsEnabled="{Binding CanConnect}" Click="ConnectButton_Click" />
+                    <Button x:Name="DisconnectButton" Content="Disconnect"
+                            IsEnabled="{Binding CanDisconnect}" Click="DisconnectButton_Click" />
+                    <Button x:Name="EditButton" Content="Edit"
+                            IsEnabled="{Binding CanConnect}" Click="EditButton_Click" />
+                </StackPanel>
+
+                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                <Grid ColumnSpacing="16" RowSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Server node id" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ServerNodeId}" IsTextSelectionEnabled="True" TextWrapping="Wrap" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Mode" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Mode}" />
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Assigned IP" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding AssignedIp}" IsTextSelectionEnabled="True" />
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Gateway" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Gateway}" IsTextSelectionEnabled="True" />
+
+                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Routes" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding RoutesText}" TextWrapping="Wrap" />
+
+                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Connection" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding ConnectionPath}" TextWrapping="Wrap" />
+
+                    <TextBlock Grid.Row="6" Grid.Column="0" Text="Bypass" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding BypassText}" TextWrapping="Wrap" />
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

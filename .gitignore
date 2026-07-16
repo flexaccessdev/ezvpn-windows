@@ -1,0 +1,18 @@
+# Build output
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+*.user
+
+# Native DLLs staged at build/package time (from ../ezvpn/dist/windows and wintun.net)
+native/*.dll
+
+# MSI / publish output
+publish/
+*.msi
+*.wixpdb
+
+# Rider / VS
+.vs/
+.idea/

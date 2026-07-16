@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>Ezvpn.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64;arm64</Platforms>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <!-- WinUI needs a RID to build. Default to win-x64 so `dotnet build` (and a
+         RID-less solution build) works; publish/CI override with -r for arm64. -->
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Unpackaged (no MSIX): the app is delivered by a plain MSI. This triggers
+         the Windows App SDK auto-initializer so no runtime install is needed. -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <EnableMsixTooling>false</EnableMsixTooling>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ezvpn.Core\Ezvpn.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Native DLLs are resolved at RUNTIME (P/Invoke), so they are not needed to
+       compile. They are copied into the output for running / packaging: ezvpn.dll
+       from a local Rust build when EZVPN_LOCAL_DLL=1, else from native/; wintun.dll
+       always from native/. Missing files are skipped (Condition=Exists). -->
+  <PropertyGroup>
+    <EzvpnDllDir Condition="'$(EZVPN_LOCAL_DLL)' == '1'">$(MSBuildProjectDirectory)\..\..\..\ezvpn\dist\windows</EzvpnDllDir>
+    <EzvpnDllDir Condition="'$(EzvpnDllDir)' == ''">$(MSBuildProjectDirectory)\..\..\native</EzvpnDllDir>
+    <WintunDllDir Condition="'$(WintunDllDir)' == ''">$(MSBuildProjectDirectory)\..\..\native</WintunDllDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(EzvpnDllDir)\ezvpn.dll" Condition="Exists('$(EzvpnDllDir)\ezvpn.dll')">
+      <Link>ezvpn.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="$(WintunDllDir)\wintun.dll" Condition="Exists('$(WintunDllDir)\wintun.dll')">
+      <Link>wintun.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <!-- Required by the LibraryImport source generator. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Pure, testable model + config + P/Invoke declarations. No WinUI. The
+         DllImport'd ezvpn.dll only loads at runtime on Windows. -->
+  </PropertyGroup>
+
+</Project>
