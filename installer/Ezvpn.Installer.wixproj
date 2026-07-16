@@ -20,6 +20,11 @@
     <DefineConstants>PublishDir=$(PublishDir);ProductVersion=$(ProductVersion)</DefineConstants>
   </PropertyGroup>
 
+  <!-- WixUI dialog set (the install wizard) lives in the UI extension. -->
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="5.0.2" />
+  </ItemGroup>
+
   <!-- Fail the packaging build up front (before the Files harvest in Product.wxs)
        if either native DLL is absent from the publish output. Without this the MSI
        would happily ship without ezvpn.dll / wintun.dll and the installed app

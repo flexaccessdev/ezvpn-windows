@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
 
   <!--
     Per-machine MSI for the ezvpn Windows GUI. Bundles the self-contained
@@ -17,6 +18,12 @@
 
     <MajorUpgrade DowngradeErrorMessage="A newer version of ezvpn is already installed." />
     <MediaTemplate EmbedCab="yes" />
+
+    <!-- Install wizard: Welcome -> License -> Install folder -> Ready ->
+         Progress -> Finish. WixUI_InstallDir lets the user change the folder;
+         WIXUI_INSTALLDIR names the directory it edits. -->
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
 
     <!-- Install into %ProgramFiles%\ezvpn. -->
     <StandardDirectory Id="ProgramFiles64Folder">
