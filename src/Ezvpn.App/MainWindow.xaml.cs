@@ -54,7 +54,11 @@ public sealed partial class MainWindow : Window
         {
             _tray?.Dispose();
             _tray = null;
-            _manager.DisconnectInternal();
+            // Last-resort teardown on window close (e.g. the no-tray fallback where
+            // closing quits). Block until routes/adapter are removed — the window is
+            // already gone, so there is no live UI to keep responsive. In the Quit
+            // path the session is already torn down, so this is a no-op.
+            _manager.ShutdownSync();
         };
     }
 
@@ -113,12 +117,15 @@ public sealed partial class MainWindow : Window
         SetForegroundWindow(_hwnd);
     }
 
-    private void Quit()
+    private async void Quit()
     {
         _isExiting = true;
         _tray?.Dispose();
         _tray = null;
-        _manager.DisconnectInternal();
+        // Await teardown so routes/adapter are removed before we exit, while the UI
+        // thread keeps pumping (no freeze). The blocking native stop runs on a
+        // background thread inside DisconnectAsync.
+        await _manager.DisconnectAsync();
         Application.Current.Exit();
     }
 

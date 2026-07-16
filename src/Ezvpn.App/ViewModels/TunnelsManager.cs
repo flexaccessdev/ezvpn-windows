@@ -136,7 +136,10 @@ public sealed class TunnelsManager : ObservableObject
     {
         if (_active is not null && !ReferenceEquals(_active, vm))
         {
-            DisconnectInternal();
+            // Wait for the previous tunnel's teardown to finish before starting
+            // this one: they share the wintun adapter and the Rust single-instance
+            // lock, so overlapping A's teardown with B's setup would race.
+            await DisconnectAsync().ConfigureAwait(true);
         }
 
         // Claim this attempt. A subsequent disconnect/reconnect bumps _generation,
@@ -183,19 +186,68 @@ public sealed class TunnelsManager : ObservableObject
         }
     }
 
-    /// <summary>Stop and tear down whatever is active. Safe to call when idle.</summary>
-    public void DisconnectInternal()
+    /// <summary>
+    /// Stop and tear down whatever is active without blocking the UI thread. The
+    /// UI reflects "disconnected" immediately; the blocking native teardown runs
+    /// in the background. Safe to call when idle.
+    /// </summary>
+    public void DisconnectInternal() => _ = DisconnectAsync();
+
+    /// <summary>
+    /// Detach the active session from the UI immediately, then tear it down on a
+    /// background thread. The returned task completes when the native teardown
+    /// (<c>ezvpn_stop</c> removes routes/adapter and can take a few seconds)
+    /// finishes — await it when teardown must complete before the next step
+    /// (switching tunnels, app exit); fire-and-forget otherwise.
+    /// </summary>
+    public Task DisconnectAsync()
     {
-        // Invalidate any pending ConnectAsync Start so its session is discarded.
+        var session = DetachActive();
+        return session is null ? Task.CompletedTask : Task.Run(() => DisposeSession(session));
+    }
+
+    /// <summary>
+    /// Tear down synchronously, blocking until the native teardown completes. For
+    /// app-exit paths only, where routes/adapter must be removed before the
+    /// process ends and there is no live UI left to keep responsive.
+    /// </summary>
+    public void ShutdownSync() => DisposeSession(DetachActive());
+
+    /// <summary>
+    /// Detach the active session from the UI state and return it (now orphaned)
+    /// for the caller to dispose. Runs on the UI thread and does no blocking
+    /// native work: it invalidates any pending <see cref="ConnectAsync"/> (via the
+    /// generation bump), stops polling, and clears the active view model.
+    /// </summary>
+    private EzvpnSession? DetachActive()
+    {
         _generation++;
         _timer.Stop();
-        _session?.Dispose();
+
+        var session = _session;
         _session = null;
 
         var previous = _active;
         _active = null;
         OnPropertyChanged(nameof(Active));
         previous?.SetDisconnected();
+        return session;
+    }
+
+    /// <summary>Dispose a session, swallowing teardown failures.</summary>
+    private static void DisposeSession(EzvpnSession? session)
+    {
+        try
+        {
+            session?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            // Teardown is best-effort; a failure must not crash the app via an
+            // unobserved background-task exception. Volatile routes/adapter are
+            // reclaimed by the OS at worst on the next reboot.
+            System.Diagnostics.Debug.WriteLine($"ezvpn teardown failed: {ex}");
+        }
     }
 
     private void Poll()
