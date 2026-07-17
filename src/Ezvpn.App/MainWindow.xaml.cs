@@ -43,8 +43,12 @@ public sealed partial class MainWindow : Window
         }
 
         // Closing the window hides to the tray instead of quitting; the tunnel
-        // keeps running. Quit (tray menu) is the only path that exits. Without a
-        // tray there is nothing to hide to, so fall back to the plain quit behavior.
+        // keeps running. Quit (tray menu) is the only path that exits. Because the
+        // window is hidden and not destroyed, this MainWindow instance stays alive
+        // while in the tray — its poll timer keeps ticking and its PropertyChanged
+        // subscriptions keep firing, so the tray icon's connection state (see
+        // SetUpTray) stays live while the window is closed. Without a tray there is
+        // nothing to hide to, so fall back to the plain quit behavior.
         AppWindow.Closing += (_, e) =>
         {
             if (_tray is not null && !_isExiting)
@@ -83,7 +87,10 @@ public sealed partial class MainWindow : Window
 
         // Reflect the active tunnel's connection state in the tray icon (gray
         // until connected). The active tunnel changes as tunnels connect/switch,
-        // so re-subscribe to whichever view model is currently active.
+        // so re-subscribe to whichever view model is currently active. This works
+        // whether the window is shown or hidden to the tray: closing only hides
+        // the window (see AppWindow.Closing above), so these subscriptions and the
+        // manager's poll timer keep running until the app actually quits.
         _manager.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(TunnelsManager.Active))
