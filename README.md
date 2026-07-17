@@ -1,8 +1,8 @@
 # ezvpn-windows
 
-A native Windows GUI for [`ezvpn`](https://github.com/andrewtheguy/ezvpn), the
+A native Windows GUI for [`ezvpn`](https://github.com/flexaccessdev/ezvpn), the
 IP-over-QUIC VPN. This is the Windows sibling of
-[`ezvpn-apple`](https://github.com/andrewtheguy/ezvpn-apple): a **WinUI 3** app
+[`ezvpn-apple`](https://github.com/flexaccessdev/ezvpn-apple): a **WinUI 3** app
 that drives the `ezvpn` Rust core through its C FFI (`ezvpn.dll`), P/Invoked
 from .NET.
 

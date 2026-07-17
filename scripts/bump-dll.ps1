@@ -23,7 +23,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$Repo = 'andrewtheguy/ezvpn'
+$Repo = 'flexaccessdev/ezvpn'
 $Asset = 'ezvpn-windows.dll.zip'
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Targets = Join-Path $ScriptDir '..\native\native.targets'
