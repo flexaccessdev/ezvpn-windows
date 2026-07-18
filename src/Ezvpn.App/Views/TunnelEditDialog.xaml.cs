@@ -25,7 +25,6 @@ public sealed partial class TunnelEditDialog : ContentDialog
         RelayBox.Text = string.Join(Environment.NewLine, profile.RelayUrls);
         RoutesBox.Text = string.Join(Environment.NewLine, profile.Routes);
         Routes6Box.Text = string.Join(Environment.NewLine, profile.Routes6);
-        DnsBox.Text = profile.DnsServer ?? "";
         AutoReconnectCheck.IsChecked = profile.AutoReconnect;
         MaxAttemptsBox.Value = profile.MaxReconnectAttempts ?? double.NaN;
     }
@@ -49,8 +48,6 @@ public sealed partial class TunnelEditDialog : ContentDialog
         profile.RelayUrls = TunnelValidation.SplitList(RelayBox.Text);
         profile.Routes = TunnelValidation.SplitList(RoutesBox.Text);
         profile.Routes6 = TunnelValidation.SplitList(Routes6Box.Text);
-        var dns = DnsBox.Text.Trim();
-        profile.DnsServer = dns.Length == 0 ? null : dns;
         profile.AutoReconnect = AutoReconnectCheck.IsChecked ?? true;
         profile.MaxReconnectAttempts = ParseMaxAttempts(MaxAttemptsBox.Value);
         return TokenBox.Password;

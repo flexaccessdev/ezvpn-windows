@@ -27,10 +27,6 @@ public sealed class TunnelProfile
     [JsonPropertyName("relayUrls")]
     public List<string> RelayUrls { get; set; } = new();
 
-    /// <summary>Optional peer-discovery DNS server URL, or "none" to disable discovery.</summary>
-    [JsonPropertyName("dnsServer")]
-    public string? DnsServer { get; set; }
-
     /// <summary>IPv4 CIDRs routed through the tunnel (split tunnel). Optional.</summary>
     [JsonPropertyName("routes")]
     public List<string> Routes { get; set; } = new();
