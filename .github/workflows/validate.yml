@@ -1,11 +1,11 @@
-name: build
+name: validate
 
 on:
   # Manual only — run from the Actions tab (workflow_dispatch).
   workflow_dispatch:
 
 jobs:
-  build-and-test:
+  validate:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
