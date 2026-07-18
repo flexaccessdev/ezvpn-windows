@@ -35,8 +35,6 @@
                      AcceptsReturn="True" TextWrapping="Wrap" Height="60"
                      PlaceholderText="fd00::/8" />
 
-            <TextBox x:Name="DnsBox" Header="Discovery DNS server (optional; 'none' to disable)" />
-
             <NumberBox x:Name="MaxAttemptsBox" Header="Max reconnect attempts (blank = unlimited)"
                        SpinButtonPlacementMode="Compact" Minimum="1" />
 

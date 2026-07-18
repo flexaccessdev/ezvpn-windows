@@ -29,8 +29,7 @@ public class EzvpnConfigTests
         Assert.True(root.GetProperty("auto_reconnect").GetBoolean());
         Assert.False(root.GetProperty("relay_only").GetBoolean());
         Assert.Equal(profile.Instance, root.GetProperty("instance").GetString());
-        // Null dns / max attempts are omitted, not emitted as null.
-        Assert.False(root.TryGetProperty("dns_server", out _));
+        // Null max attempts is omitted, not emitted as null.
         Assert.False(root.TryGetProperty("max_reconnect_attempts", out _));
     }
 
@@ -40,7 +39,6 @@ public class EzvpnConfigTests
         var profile = new TunnelProfile
         {
             ServerNodeId = "node",
-            DnsServer = "none",
             MaxReconnectAttempts = 5,
         };
 
@@ -49,7 +47,6 @@ public class EzvpnConfigTests
         var root = doc.RootElement;
 
         Assert.Equal("v0123456789", root.GetProperty("auth_token").GetString());
-        Assert.Equal("none", root.GetProperty("dns_server").GetString());
         Assert.Equal(5u, root.GetProperty("max_reconnect_attempts").GetUInt32());
     }
 
