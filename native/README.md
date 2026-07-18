@@ -1,9 +1,9 @@
 # native/
 
 Runtime native DLLs, acquired automatically by `native.targets` (imported by
-`src/Ezvpn.App`) and copied into the app's build / publish output. This folder is
-git-ignored; the DLLs are runtime-only (P/Invoke) so the solution compiles and the
-Core tests run without them.
+`src/Ezvpn.App`) and copied into the app's build / publish output. Generated DLLs
+in this folder are git-ignored; the DLLs are runtime-only (P/Invoke), so the
+solution compiles and the Core tests run without them.
 
 - **`ezvpn.dll`** — the ezvpn Rust core C FFI. By default downloaded from a pinned
   `ezvpn` GitHub release (`ezvpn-windows.dll.zip`) and verified by SHA256; staged

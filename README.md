@@ -6,7 +6,8 @@ IP-over-QUIC VPN. This is the Windows sibling of
 that drives the `ezvpn` Rust core through its C FFI (`ezvpn.dll`), P/Invoked
 from .NET.
 
-Scoped for development-signed personal use — the MSI is unsigned.
+Scoped for development-signed personal use on x64 Windows — the MSI is unsigned,
+and ARM64 packaging is currently out of scope.
 
 ## How it works
 
@@ -66,7 +67,8 @@ copying:
   (the Windows analog of `ezvpn-apple`'s `bump-xcframework.sh`):
 
   ```powershell
-  ./scripts/bump-dll.ps1 v0.0.21     # or omit the tag for the latest release
+  ./scripts/bump-dll.ps1             # latest release
+  ./scripts/bump-dll.ps1 v0.0.23     # or pin an explicit release
   ```
 
 To iterate on the FFI against a **local core build** instead of a release, set
@@ -80,10 +82,9 @@ cd ..\ezvpn; ./build-windows.ps1; cd ..\ezvpn-windows
 $env:EZVPN_LOCAL_DLL = "1"
 ```
 
-> Until an `ezvpn` release has shipped the `ezvpn-windows.dll.zip` asset and
-> `bump-dll.ps1` has pinned its checksum, the default download for `ezvpn.dll` is
-> skipped (the build warns but still succeeds) — use `EZVPN_LOCAL_DLL=1` in the
-> meantime.
+The currently pinned tag and checksum are recorded in `native/native.targets`.
+An ordinary build can still compile while offline if the runtime DLLs are
+unavailable, but publish fails rather than producing an unusable MSI.
 
 ### 2. Build & test
 
