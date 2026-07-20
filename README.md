@@ -71,6 +71,10 @@ copying:
   ./scripts/bump-dll.ps1 v0.0.23     # or pin an explicit release
   ```
 
+  The script is cross-platform — on Linux/macOS run it with PowerShell Core
+  (`pwsh scripts/bump-dll.ps1`). It only needs the `gh` CLI when resolving the
+  latest release (i.e. when no tag is given).
+
 To iterate on the FFI against a **local core build** instead of a release, set
 `EZVPN_LOCAL_DLL=1`; `ezvpn.dll` is then linked straight from
 `..\ezvpn\dist\windows` (build it there with `./build-windows.ps1`). `wintun.dll`

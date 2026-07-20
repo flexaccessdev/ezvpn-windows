@@ -32,7 +32,6 @@ public static class EzvpnConfig
             ServerNodeId = profile.ServerNodeId,
             AuthToken = authToken,
             RelayUrls = profile.RelayUrls,
-            RelayOnly = false,
             Routes = profile.Routes,
             Routes6 = profile.Routes6,
             Instance = profile.Instance,
@@ -52,9 +51,6 @@ public static class EzvpnConfig
 
         [JsonPropertyName("relay_urls")]
         public List<string> RelayUrls { get; set; } = new();
-
-        [JsonPropertyName("relay_only")]
-        public bool RelayOnly { get; set; }
 
         [JsonPropertyName("routes")]
         public List<string> Routes { get; set; } = new();
