@@ -16,15 +16,27 @@ public static class EzvpnConfig
     };
 
     /// <summary>
-    /// Serialize <paramref name="profile"/> plus its <paramref name="authToken"/>
-    /// into the <c>ezvpn_start</c> config JSON. The auth token is required; a
-    /// null/blank token throws <see cref="ArgumentException"/>.
+    /// Serialize <paramref name="profile"/> plus its secret token(s) into the
+    /// <c>ezvpn_start</c> config JSON. The auth token is required; a null/blank
+    /// token throws <see cref="ArgumentException"/>.
+    ///
+    /// <paramref name="relayAuthToken"/> is the optional shared relay bearer
+    /// token. It is only valid with custom relays: a non-blank token with no
+    /// <see cref="TunnelProfile.RelayUrls"/> throws (the core rejects it too),
+    /// and a null/blank token is omitted from the JSON.
     /// </summary>
-    public static string Build(TunnelProfile profile, string? authToken)
+    public static string Build(TunnelProfile profile, string? authToken, string? relayAuthToken = null)
     {
         if (string.IsNullOrWhiteSpace(authToken))
         {
             throw new ArgumentException("An auth token is required.", nameof(authToken));
+        }
+
+        var relayToken = string.IsNullOrWhiteSpace(relayAuthToken) ? null : relayAuthToken;
+        if (relayToken is not null && profile.RelayUrls.Count == 0)
+        {
+            throw new ArgumentException(
+                "A relay token requires at least one relay URL.", nameof(relayAuthToken));
         }
 
         var dto = new StartConfigDto
@@ -32,6 +44,7 @@ public static class EzvpnConfig
             ServerNodeId = profile.ServerNodeId,
             AuthToken = authToken,
             RelayUrls = profile.RelayUrls,
+            RelayAuthToken = relayToken,
             Routes = profile.Routes,
             Routes6 = profile.Routes6,
             Instance = profile.Instance,
@@ -51,6 +64,9 @@ public static class EzvpnConfig
 
         [JsonPropertyName("relay_urls")]
         public List<string> RelayUrls { get; set; } = new();
+
+        [JsonPropertyName("relay_auth_token")]
+        public string? RelayAuthToken { get; set; }
 
         [JsonPropertyName("routes")]
         public List<string> Routes { get; set; } = new();

@@ -49,11 +49,12 @@ public sealed class TunnelsManager : ObservableObject
 
     // --- Profile CRUD ---------------------------------------------------------
 
-    /// <summary>Add a new profile with its required secret token and persist it.</summary>
-    public TunnelViewModel Add(TunnelProfile profile, string authToken)
+    /// <summary>Add a new profile with its secret token(s) and persist it.</summary>
+    public TunnelViewModel Add(TunnelProfile profile, string authToken, string? relayAuthToken)
     {
-        // Persist both stores before touching the live model. If the credential
-        // write fails, roll the profile back so nothing is left half-created.
+        // Persist both stores before touching the live model. If a credential
+        // write fails, roll the profile (and any token) back so nothing is left
+        // half-created.
         _store.Save(profile);
         try
         {
@@ -64,41 +65,55 @@ public sealed class TunnelsManager : ObservableObject
             _store.Delete(profile.Id);
             throw;
         }
+        try
+        {
+            SetRelayToken(profile.Id, relayAuthToken);
+        }
+        catch
+        {
+            TokenStore.Delete(profile.Id);
+            _store.Delete(profile.Id);
+            throw;
+        }
 
         var vm = new TunnelViewModel(profile);
         Tunnels.Add(vm);
         return vm;
     }
 
-    /// <summary>Persist edits to an existing profile and its required token.</summary>
-    public void Update(TunnelViewModel vm, string authToken)
+    /// <summary>Persist edits to an existing profile and its secret token(s).</summary>
+    public void Update(TunnelViewModel vm, string authToken, string? relayAuthToken)
     {
         // Write the credential first (nothing on disk changes if it fails), then
-        // the profile atomically. If the profile write fails, restore the prior
-        // credential so the two stores can't diverge.
+        // the profile atomically. If a later step fails, restore the prior
+        // credentials so the stores can't diverge.
         var previousToken = TokenStore.Load(vm.Profile.Id);
+        var previousRelay = TokenStore.LoadRelay(vm.Profile.Id);
         TokenStore.Save(vm.Profile.Id, authToken);
+        try
+        {
+            SetRelayToken(vm.Profile.Id, relayAuthToken);
+        }
+        catch
+        {
+            RestoreAuthToken(vm.Profile.Id, previousToken);
+            throw;
+        }
         try
         {
             _store.Save(vm.Profile);
         }
         catch
         {
-            if (previousToken is not null)
-            {
-                TokenStore.Save(vm.Profile.Id, previousToken);
-            }
-            else
-            {
-                TokenStore.Delete(vm.Profile.Id);
-            }
+            RestoreAuthToken(vm.Profile.Id, previousToken);
+            SetRelayToken(vm.Profile.Id, previousRelay);
             throw;
         }
 
         vm.NotifyProfileChanged();
     }
 
-    /// <summary>Disconnect (if active), then delete the profile and its token.</summary>
+    /// <summary>Disconnect (if active), then delete the profile and its token(s).</summary>
     public void Delete(TunnelViewModel vm)
     {
         if (ReferenceEquals(_active, vm))
@@ -106,12 +121,13 @@ public sealed class TunnelsManager : ObservableObject
             DisconnectInternal();
         }
 
-        // Remove the profile, then the credential. If credential removal fails,
+        // Remove the profile, then the credentials. If credential removal fails,
         // restore the profile so we don't orphan a credential with no profile.
         _store.Delete(vm.Profile.Id);
         try
         {
             TokenStore.Delete(vm.Profile.Id);
+            TokenStore.DeleteRelay(vm.Profile.Id);
         }
         catch
         {
@@ -122,8 +138,37 @@ public sealed class TunnelsManager : ObservableObject
         Tunnels.Remove(vm);
     }
 
-    /// <summary>The current stored token for a profile (for pre-filling the edit form).</summary>
+    /// <summary>The current stored auth token for a profile (for pre-filling the edit form).</summary>
     public string? LoadToken(TunnelViewModel vm) => TokenStore.Load(vm.Profile.Id);
+
+    /// <summary>The current stored relay token for a profile, or null if none.</summary>
+    public string? LoadRelayToken(TunnelViewModel vm) => TokenStore.LoadRelay(vm.Profile.Id);
+
+    /// <summary>Persist (or clear) the optional relay token. A null/blank token
+    /// deletes any stored item, so removing it in the editor removes the secret.</summary>
+    private static void SetRelayToken(Guid id, string? token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            TokenStore.DeleteRelay(id);
+        }
+        else
+        {
+            TokenStore.SaveRelay(id, token);
+        }
+    }
+
+    private static void RestoreAuthToken(Guid id, string? previousToken)
+    {
+        if (previousToken is not null)
+        {
+            TokenStore.Save(id, previousToken);
+        }
+        else
+        {
+            TokenStore.Delete(id);
+        }
+    }
 
     // --- Connection lifecycle -------------------------------------------------
 
@@ -149,7 +194,8 @@ public sealed class TunnelsManager : ObservableObject
         vm.SetConnecting();
 
         var token = TokenStore.Load(vm.Profile.Id);
-        var json = EzvpnConfig.Build(vm.Profile, token);
+        var relayToken = TokenStore.LoadRelay(vm.Profile.Id);
+        var json = EzvpnConfig.Build(vm.Profile, token, relayToken);
 
         try
         {

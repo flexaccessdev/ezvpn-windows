@@ -32,6 +32,45 @@ public class EzvpnConfigTests
         Assert.Equal(profile.Instance, root.GetProperty("instance").GetString());
         // Null max attempts is omitted, not emitted as null.
         Assert.False(root.TryGetProperty("max_reconnect_attempts", out _));
+        // No relay token was supplied, so the key is omitted.
+        Assert.False(root.TryGetProperty("relay_auth_token", out _));
+    }
+
+    [Fact]
+    public void Build_EmitsRelayAuthToken_WithCustomRelays()
+    {
+        var profile = new TunnelProfile
+        {
+            ServerNodeId = "node",
+            RelayUrls = { "https://relay.example/" },
+        };
+
+        var json = EzvpnConfig.Build(profile, "tok", "relay-secret");
+        using var doc = JsonDocument.Parse(json);
+
+        Assert.Equal("relay-secret", doc.RootElement.GetProperty("relay_auth_token").GetString());
+    }
+
+    [Fact]
+    public void Build_OmitsBlankRelayAuthToken()
+    {
+        var profile = new TunnelProfile
+        {
+            ServerNodeId = "node",
+            RelayUrls = { "https://relay.example/" },
+        };
+
+        var json = EzvpnConfig.Build(profile, "tok", "   ");
+        using var doc = JsonDocument.Parse(json);
+
+        Assert.False(doc.RootElement.TryGetProperty("relay_auth_token", out _));
+    }
+
+    [Fact]
+    public void Build_RelayAuthTokenWithoutRelays_Throws()
+    {
+        var profile = new TunnelProfile { ServerNodeId = "node" };
+        Assert.Throws<ArgumentException>(() => EzvpnConfig.Build(profile, "tok", "relay-secret"));
     }
 
     [Fact]

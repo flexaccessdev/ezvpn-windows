@@ -25,7 +25,11 @@
             <PasswordBox x:Name="TokenBox" Header="Auth token (required)" />
 
             <TextBox x:Name="RelayBox" Header="Relay URLs (optional, one per line)"
-                     AcceptsReturn="True" TextWrapping="Wrap" Height="60" />
+                     AcceptsReturn="True" TextWrapping="Wrap" Height="60"
+                     TextChanged="OnRelayBoxTextChanged" />
+
+            <PasswordBox x:Name="RelayTokenBox" Header="Relay token (optional, custom relays only)"
+                         IsEnabled="False" />
 
             <TextBox x:Name="RoutesBox" Header="IPv4 routes (CIDR, comma/space/line separated)"
                      AcceptsReturn="True" TextWrapping="Wrap" Height="60"

@@ -200,8 +200,8 @@ public sealed partial class MainWindow : Window
 
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
         {
-            var (profile, token) = dialog.BuildResult();
-            var vm = _manager.Add(profile, token);
+            var (profile, token, relayToken) = dialog.BuildResult();
+            var vm = _manager.Add(profile, token, relayToken);
             TunnelList.SelectedItem = vm;
         }
     }
@@ -219,12 +219,12 @@ public sealed partial class MainWindow : Window
             Title = "Edit profile",
         };
         dialog.SetExistingNames(_manager.Tunnels.Where(t => t != vm).Select(t => t.Name));
-        dialog.LoadFrom(vm.Profile, _manager.LoadToken(vm));
+        dialog.LoadFrom(vm.Profile, _manager.LoadToken(vm), _manager.LoadRelayToken(vm));
 
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
         {
             var token = dialog.ApplyTo(vm.Profile);
-            _manager.Update(vm, token);
+            _manager.Update(vm, token, dialog.RelayToken);
         }
     }
 

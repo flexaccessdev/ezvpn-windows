@@ -16,30 +16,37 @@ public sealed partial class TunnelEditDialog : ContentDialog
     /// <summary>Names to reject as duplicates (exclude the profile being edited).</summary>
     public void SetExistingNames(IEnumerable<string> names) => _existingNames = names.ToArray();
 
-    /// <summary>Prefill the form from an existing profile + its stored token.</summary>
-    public void LoadFrom(TunnelProfile profile, string? token)
+    /// <summary>Prefill the form from an existing profile + its stored token(s).</summary>
+    public void LoadFrom(TunnelProfile profile, string? token, string? relayToken)
     {
         NameBox.Text = profile.Name;
         NodeIdBox.Text = profile.ServerNodeId;
         TokenBox.Password = token ?? "";
         RelayBox.Text = string.Join(Environment.NewLine, profile.RelayUrls);
+        RelayTokenBox.Password = relayToken ?? "";
         RoutesBox.Text = string.Join(Environment.NewLine, profile.Routes);
         Routes6Box.Text = string.Join(Environment.NewLine, profile.Routes6);
         AutoReconnectCheck.IsChecked = profile.AutoReconnect;
         MaxAttemptsBox.Value = profile.MaxReconnectAttempts ?? double.NaN;
+        UpdateRelayTokenEnabled();
     }
 
-    /// <summary>Build a brand-new profile and its token from the form (for Add).</summary>
-    public (TunnelProfile Profile, string Token) BuildResult()
+    /// <summary>The optional relay token from the form, or null when blank.</summary>
+    public string? RelayToken =>
+        string.IsNullOrWhiteSpace(RelayTokenBox.Password) ? null : RelayTokenBox.Password;
+
+    /// <summary>Build a brand-new profile and its token(s) from the form (for Add).</summary>
+    public (TunnelProfile Profile, string Token, string? RelayToken) BuildResult()
     {
         var profile = new TunnelProfile();
         var token = ApplyTo(profile);
-        return (profile, token);
+        return (profile, token, RelayToken);
     }
 
     /// <summary>
     /// Write the form into <paramref name="profile"/> and return the (required)
-    /// auth token text. Validation guarantees it is non-blank before Save.
+    /// auth token text. Validation guarantees it is non-blank before Save. The
+    /// optional relay token is read separately via <see cref="RelayToken"/>.
     /// </summary>
     public string ApplyTo(TunnelProfile profile)
     {
@@ -51,6 +58,21 @@ public sealed partial class TunnelEditDialog : ContentDialog
         profile.AutoReconnect = AutoReconnectCheck.IsChecked ?? true;
         profile.MaxReconnectAttempts = ParseMaxAttempts(MaxAttemptsBox.Value);
         return TokenBox.Password;
+    }
+
+    // The relay token is only meaningful with custom relays: disable (and clear)
+    // the field whenever no relay URLs are entered.
+    private void OnRelayBoxTextChanged(object sender, TextChangedEventArgs args) =>
+        UpdateRelayTokenEnabled();
+
+    private void UpdateRelayTokenEnabled()
+    {
+        var hasRelays = TunnelValidation.SplitList(RelayBox.Text).Count > 0;
+        RelayTokenBox.IsEnabled = hasRelays;
+        if (!hasRelays)
+        {
+            RelayTokenBox.Password = "";
+        }
     }
 
     /// <summary>
@@ -104,6 +126,15 @@ public sealed partial class TunnelEditDialog : ContentDialog
         if (tokenError is not null)
         {
             return tokenError;
+        }
+
+        // The relay token is custom-relay-only (the core rejects it otherwise).
+        // The field is normally auto-cleared when no relays are present; this
+        // guards the edge case and gives a clear message.
+        if (!string.IsNullOrWhiteSpace(RelayTokenBox.Password)
+            && TunnelValidation.SplitList(RelayBox.Text).Count == 0)
+        {
+            return "A relay token requires at least one relay URL.";
         }
 
         var routes4 = TunnelValidation.SplitList(RoutesBox.Text);
