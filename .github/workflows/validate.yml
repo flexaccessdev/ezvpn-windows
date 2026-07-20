@@ -1,6 +1,7 @@
 name: validate
 
 on:
+  pull_request:
   # Manual only — run from the Actions tab (workflow_dispatch).
   workflow_dispatch:
 
