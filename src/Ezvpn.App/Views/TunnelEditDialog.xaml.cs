@@ -22,7 +22,7 @@ public sealed partial class TunnelEditDialog : ContentDialog
         NameBox.Text = profile.Name;
         NodeIdBox.Text = profile.ServerNodeId;
         TokenBox.Password = token ?? "";
-        RelayBox.Text = string.Join(Environment.NewLine, profile.RelayUrls);
+        RelayBox.Text = string.Join(", ", profile.RelayUrls);
         RelayTokenBox.Password = relayToken ?? "";
         RoutesBox.Text = string.Join(Environment.NewLine, profile.Routes);
         Routes6Box.Text = string.Join(Environment.NewLine, profile.Routes6);
@@ -130,7 +130,9 @@ public sealed partial class TunnelEditDialog : ContentDialog
 
         // The relay token is custom-relay-only (the core rejects it otherwise).
         // The field is normally auto-cleared when no relays are present; this
-        // guards the edge case and gives a clear message.
+        // guards the edge case and gives a clear message. Relay URL *format* is
+        // validated by the core at connect time, matching ezvpn-apple (which does
+        // no client-side URL validation either).
         if (!string.IsNullOrWhiteSpace(RelayTokenBox.Password)
             && TunnelValidation.SplitList(RelayBox.Text).Count == 0)
         {

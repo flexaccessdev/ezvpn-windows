@@ -24,8 +24,9 @@
 
             <PasswordBox x:Name="TokenBox" Header="Auth token (required)" />
 
-            <TextBox x:Name="RelayBox" Header="Relay URLs (optional, one per line)"
-                     AcceptsReturn="True" TextWrapping="Wrap" Height="60"
+            <TextBox x:Name="RelayBox" Header="Relay URLs (optional, comma-separated)"
+                     PlaceholderText="https://relay.example.com"
+                     TextWrapping="Wrap" AcceptsReturn="False"
                      TextChanged="OnRelayBoxTextChanged" />
 
             <PasswordBox x:Name="RelayTokenBox" Header="Relay token (optional, custom relays only)"

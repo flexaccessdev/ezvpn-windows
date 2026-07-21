@@ -105,7 +105,7 @@ public sealed class TunnelViewModel : ObservableObject
     public string ConnectionPath => _status?.Connection ?? "—";
 
     public string CustomRelaysText => (_status?.CustomRelays is { Count: > 0 } relays)
-        ? string.Join(Environment.NewLine, relays.Select(FormatRelay))
+        ? string.Join(", ", relays.Select(FormatRelay))
         : "—";
 
     public string BypassText => (_status?.BypassAddrs is { Count: > 0 } b)
