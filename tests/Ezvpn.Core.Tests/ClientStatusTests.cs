@@ -57,8 +57,45 @@ public class ClientStatusTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("not json")]
+    [InlineData("123")]      // valid JSON, but not an object
+    [InlineData("[1,2,3]")]  // valid JSON array, not an object
     public void Parse_InvalidReturnsNull(string? input)
     {
         Assert.Null(ClientStatus.Parse(input));
+    }
+
+    // Structural immunity: unknown keys the core may add are ignored, and
+    // consumed keys still decode. The decoder models what the app reads, not the
+    // full core struct, so status-shape drift never breaks parsing.
+    [Fact]
+    public void Parse_IgnoresUnknownKeys()
+    {
+        const string json = """
+        {"state":"connected","mode":"ipv4","assigned_ip":"10.0.0.2",
+         "gso_negotiated":true,"some_future_field":{"nested":42},"extra":[1,2,3]}
+        """;
+        var status = ClientStatus.Parse(json);
+        Assert.NotNull(status);
+        Assert.True(status!.IsConnected);
+        Assert.Equal("ipv4", status.Mode);
+        Assert.Equal("10.0.0.2", status.AssignedIp);
+    }
+
+    // Graceful degradation: a consumed key present with an unexpected type (or a
+    // JSON null) reads as null/empty rather than throwing.
+    [Fact]
+    public void Parse_WrongTypedValuesDegradeGracefully()
+    {
+        const string json = """
+        {"state":"connected","mtu":"not-a-number","connected_since_secs":null,
+         "assigned_ip":123,"routes":"not-an-array","custom_relays":"nope"}
+        """;
+        var status = ClientStatus.Parse(json);
+        Assert.NotNull(status);
+        Assert.Null(status!.Mtu);
+        Assert.Null(status.ConnectedSinceSecs);
+        Assert.Null(status.AssignedIp);
+        Assert.Empty(status.Routes);
+        Assert.Empty(status.CustomRelays);
     }
 }

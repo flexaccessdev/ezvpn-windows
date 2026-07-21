@@ -169,7 +169,7 @@ public sealed class TunnelViewModel : ObservableObject
         return parts.Length == 0 ? "—" : string.Join(", ", parts);
     }
 
-    private static string JoinList(List<string>? a, List<string>? b)
+    private static string JoinList(IReadOnlyList<string>? a, IReadOnlyList<string>? b)
     {
         var all = new List<string>();
         if (a is not null) all.AddRange(a);

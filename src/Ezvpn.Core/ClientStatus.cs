@@ -1,85 +1,82 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace Ezvpn.Core;
 
 /// <summary>
-/// Deserialized form of the JSON returned by <c>ezvpn_status</c> — the client
-/// variant of the Rust <c>StatusSnapshot</c> (see <c>src/control.rs</c>). The
-/// enum is internally tagged, so the JSON is flat: <c>role</c> plus the
-/// <c>ClientStatus</c> fields (snake_case).
+/// A typed, read-only view of the JSON returned by <c>ezvpn_status</c> (the
+/// client variant of the Rust <c>StatusSnapshot</c> in <c>../ezvpn/src/control.rs</c>).
+///
+/// This is deliberately <b>not</b> a 1:1 mirror of the Rust struct. Rather than
+/// declaring a property for every field the core emits, it decodes the raw JSON
+/// lazily and exposes <b>only the keys this app actually consumes</b>. That makes
+/// it structurally immune to status-shape drift in the core:
+///   * a field the core <i>adds</i> is ignored until something here reads it;
+///   * a field the core <i>removes</i> or renames just makes its accessor return
+///     null/empty — nothing dead is left mirroring it, and parsing never breaks.
+/// (Mirrors how <c>ezvpn-apple</c>'s <c>TunnelSnapshotDecoder</c> reads only the
+/// keys it needs.) To surface a new field, add an accessor for its key here.
 /// </summary>
 public sealed class ClientStatus
 {
-    [JsonPropertyName("role")]
-    public string Role { get; set; } = "";
+    private readonly JsonElement _root;
 
-    [JsonPropertyName("instance")]
-    public string Instance { get; set; } = "";
+    private ClientStatus(JsonElement root) => _root = root;
+
+    // --- Consumed fields (add an accessor here to surface a new key) ----------
 
     /// <summary>"connected" once the handshake succeeds, otherwise "disconnected".</summary>
-    [JsonPropertyName("state")]
-    public string State { get; set; } = "disconnected";
-
-    [JsonPropertyName("server_node_id")]
-    public string ServerNodeId { get; set; } = "";
-
-    [JsonPropertyName("device_id")]
-    public string DeviceId { get; set; } = "";
-
-    [JsonPropertyName("connected_since_secs")]
-    public ulong? ConnectedSinceSecs { get; set; }
+    public string State => Str("state") ?? "disconnected";
 
     /// <summary>"ipv4", "ipv6", "dual-stack", or "none".</summary>
-    [JsonPropertyName("mode")]
-    public string Mode { get; set; } = "none";
+    public string Mode => Str("mode") ?? "none";
 
-    [JsonPropertyName("assigned_ip")]
-    public string? AssignedIp { get; set; }
+    public string? AssignedIp => Str("assigned_ip");
 
-    [JsonPropertyName("network")]
-    public string? Network { get; set; }
+    public string? AssignedIp6 => Str("assigned_ip6");
 
-    [JsonPropertyName("gateway")]
-    public string? Gateway { get; set; }
+    public string? Gateway => Str("gateway");
 
-    [JsonPropertyName("assigned_ip6")]
-    public string? AssignedIp6 { get; set; }
+    public string? Gateway6 => Str("gateway6");
 
-    [JsonPropertyName("network6")]
-    public string? Network6 { get; set; }
+    public int? Mtu => Int("mtu");
 
-    [JsonPropertyName("gateway6")]
-    public string? Gateway6 { get; set; }
+    public ulong? ConnectedSinceSecs => ULong("connected_since_secs");
 
-    [JsonPropertyName("mtu")]
-    public int? Mtu { get; set; }
+    public IReadOnlyList<string> Routes => StrList("routes");
 
-    [JsonPropertyName("routes")]
-    public List<string> Routes { get; set; } = new();
-
-    [JsonPropertyName("routes6")]
-    public List<string> Routes6 { get; set; } = new();
+    public IReadOnlyList<string> Routes6 => StrList("routes6");
 
     /// <summary>Live iroh path description (direct/relay, rtt), when connected.</summary>
-    [JsonPropertyName("connection")]
-    public string? Connection { get; set; }
+    public string? Connection => Str("connection");
 
-    [JsonPropertyName("custom_relays")]
-    public List<CustomRelayStatus> CustomRelays { get; set; } = new();
+    public IReadOnlyList<string> BypassAddrs => StrList("bypass_addrs");
 
-    [JsonPropertyName("bypass_addrs")]
-    public List<string> BypassAddrs { get; set; } = new();
+    public IReadOnlyList<CustomRelayStatus> CustomRelays
+    {
+        get
+        {
+            var relays = new List<CustomRelayStatus>();
+            if (_root.TryGetProperty("custom_relays", out var arr) && arr.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var e in arr.EnumerateArray())
+                {
+                    if (e.ValueKind == JsonValueKind.Object)
+                    {
+                        relays.Add(new CustomRelayStatus(e));
+                    }
+                }
+            }
+            return relays;
+        }
+    }
 
-    [JsonPropertyName("log_file")]
-    public string? LogFile { get; set; }
-
-    [JsonIgnore]
     public bool IsConnected => string.Equals(State, "connected", StringComparison.Ordinal);
+
+    // --- Parsing & typed key accessors ----------------------------------------
 
     /// <summary>
     /// Parse a status JSON string. Returns null on empty/invalid input (e.g. a
-    /// null handle wrote an empty string).
+    /// null handle wrote an empty string) or a non-object top-level value.
     /// </summary>
     public static ClientStatus? Parse(string? json)
     {
@@ -89,24 +86,77 @@ public sealed class ClientStatus
         }
         try
         {
-            return JsonSerializer.Deserialize<ClientStatus>(json);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+            // Clone so the element outlives the disposed JsonDocument.
+            return new ClientStatus(doc.RootElement.Clone());
         }
         catch (JsonException)
         {
             return null;
         }
     }
+
+    private string? Str(string key) =>
+        _root.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String
+            ? v.GetString()
+            : null;
+
+    private int? Int(string key) =>
+        _root.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n)
+            ? n
+            : null;
+
+    private ulong? ULong(string key) =>
+        _root.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetUInt64(out var n)
+            ? n
+            : null;
+
+    private List<string> StrList(string key)
+    {
+        var list = new List<string>();
+        if (_root.TryGetProperty(key, out var arr) && arr.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var e in arr.EnumerateArray())
+            {
+                if (e.ValueKind == JsonValueKind.String && e.GetString() is { } s)
+                {
+                    list.Add(s);
+                }
+            }
+        }
+        return list;
+    }
 }
 
+/// <summary>A configured custom relay URL and its latest endpoint health.</summary>
 public sealed class CustomRelayStatus
 {
-    [JsonPropertyName("url")]
-    public string Url { get; set; } = "";
+    internal CustomRelayStatus(JsonElement e)
+    {
+        Url = e.TryGetProperty("url", out var u) && u.ValueKind == JsonValueKind.String
+            ? u.GetString() ?? ""
+            : "";
+        Working = e.TryGetProperty("working", out var w)
+            ? w.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                _ => (bool?)null,
+            }
+            : null;
+        Error = e.TryGetProperty("error", out var err) && err.ValueKind == JsonValueKind.String
+            ? err.GetString()
+            : null;
+    }
+
+    public string Url { get; }
 
     /// <summary>True/false when iroh has observed health; null while unavailable.</summary>
-    [JsonPropertyName("working")]
-    public bool? Working { get; set; }
+    public bool? Working { get; }
 
-    [JsonPropertyName("error")]
-    public string? Error { get; set; }
+    public string? Error { get; }
 }
