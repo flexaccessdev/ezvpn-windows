@@ -55,9 +55,6 @@ public sealed class ClientStatus
     [JsonPropertyName("mtu")]
     public int? Mtu { get; set; }
 
-    [JsonPropertyName("gso_negotiated")]
-    public bool? GsoNegotiated { get; set; }
-
     [JsonPropertyName("routes")]
     public List<string> Routes { get; set; } = new();
 

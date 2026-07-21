@@ -15,7 +15,7 @@ public class ClientStatusTests
           "connected_since_secs":42,"mode":"dual-stack",
           "assigned_ip":"10.0.0.2","network":"10.0.0.1/32","gateway":"10.0.0.1",
           "assigned_ip6":"fd00::2","network6":"fd00::1/128","gateway6":"fd00::1",
-          "mtu":1280,"gso_negotiated":false,
+          "mtu":1280,
           "routes":["10.0.0.1/32"],"routes6":["fd00::1/128"],
           "connection":"Direct 1.2.3.4:52186 (rtt 1ms)",
           "custom_relays":[{"url":"https://relay.example/","working":true,"error":null}],
