@@ -29,9 +29,9 @@
          once an ezvpn release that includes the build-windows-lib asset exists.
          scripts\bump-dll.ps1 also mirrors this tag (minus "v") into EzvpnVersion in
          Directory.Build.props, which is the version the app UI + MSI report. -->
-    <EzvpnReleaseTag Condition="'$(EzvpnReleaseTag)' == ''">v0.0.33</EzvpnReleaseTag>
+    <EzvpnReleaseTag Condition="'$(EzvpnReleaseTag)' == ''">v0.0.34</EzvpnReleaseTag>
     <EzvpnDllZipUrl>https://github.com/flexaccessdev/ezvpn/releases/download/$(EzvpnReleaseTag)/ezvpn-windows.dll.zip</EzvpnDllZipUrl>
-    <EzvpnDllZipSha256>872c1b2443852dac0eca1e78239e0312b34577524657ce5d1d7bfc96e64ee284</EzvpnDllZipSha256>
+    <EzvpnDllZipSha256>b1045e66a9c5c76f2eac1d0d499140e0bb697745b753beea5eace27ca8251e28</EzvpnDllZipSha256>
 
     <!-- Local core build used when EZVPN_LOCAL_DLL=1 (see ..\ezvpn\build-windows.ps1).
          In that mode ezvpn.dll is consumed straight from the sibling dist — it is
