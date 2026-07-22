@@ -16,3 +16,4 @@ publish/
 # Rider / VS
 .vs/
 .idea/
+tmp/
