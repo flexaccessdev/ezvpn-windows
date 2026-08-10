@@ -14,10 +14,24 @@ name: Windows CI
 #
 # Advisory, not a gate: `main` carries no branch protection, so nothing here is
 # a *required* status check and a red run never blocks a merge.
+#
+# Documentation-only changes are skipped: nothing under docs/ or any .md file
+# reaches a compiler, so a run over one costs minutes and can only ever be
+# green. The list is repeated rather than shared through a YAML anchor —
+# GitHub's workflow parser does not support anchors. paths-ignore also does not
+# apply to workflow_dispatch, so a doc-only commit can still be built on demand.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE*"
   pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE*"
   workflow_dispatch:
 
 jobs:
