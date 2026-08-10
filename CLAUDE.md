@@ -17,16 +17,18 @@ The Rust core + C FFI live in the `../ezvpn` repo (`src/ffi_windows.rs`,
 - Native DLLs are runtime-only, so the app compiles/tests without them. They are
   copied into output for running/packaging (from `native/`, or from
   `..\ezvpn\dist\windows` when `EZVPN_LOCAL_DLL=1`).
-- **Nothing has to be committed or pushed to test a change on Windows.** From
-  the macOS dev box (where none of this builds) run `pwsh ci/windows/remote.ps1`:
-  it ships the *working tree* — uncommitted changes included — to the Hyper-V VM
-  (`windows-ci-build`, shared with `../wrustic`) and runs build, test, publish
-  and MSI there. `remote.ps1 doctor` reports the VM's toolchain, `remote.ps1
-  provision` (re)installs it. See `docs/windows-vm-ci.md`. Do this before
-  pushing rather than pushing to find out.
-- CI is `.github/workflows/windows-ci.yml` (push/PR/dispatch: the same four
-  steps). `ci\windows\ci.ps1` is the half that runs on the VM; when it and the
-  workflow disagree, the workflow is right and `ci.ps1` is stale.
+- **To check a change on Windows, run `pwsh ci/windows/remote.ps1`.** From the
+  macOS dev box (where none of this builds) it ships the *working tree* —
+  uncommitted changes included — to the Hyper-V VM (`windows-ci-build`, shared
+  with `../wrustic`) and runs build, test, publish and MSI there. `remote.ps1
+  doctor` reports the VM's toolchain, `remote.ps1 provision` (re)installs it.
+  See `docs/windows-vm-ci.md`.
+- Do **not** reach for `.github/workflows/windows-ci.yml` to find out whether
+  something works: it needs a commit and a push to trigger, and it is slow even
+  warm, because a GitHub runner starts with a cold NuGet cache every time. It
+  runs itself on push/PR — read it after the fact, don't drive it.
+  `ci\windows\ci.ps1` is the same four steps on the VM, with a warm NuGet cache;
+  when the two disagree, the workflow is right and `ci.ps1` is stale.
 
 ## Conventions
 
