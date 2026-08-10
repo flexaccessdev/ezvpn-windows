@@ -129,11 +129,37 @@ dotnet build installer/Ezvpn.Installer.wixproj -c Release -p:PublishDir="$(Resol
 # -> installer/bin/Release/ezvpn.msi
 ```
 
-CI builds the MSI on demand (`.github/workflows/release.yml`, `workflow_dispatch`):
+Releases are built on demand (`.github/workflows/release.yml`, `workflow_dispatch`):
 each run self-tags a `yyyymmddhhmmss-<short-sha>` prerelease. It does **no** Rust /
 core build — `native.targets` downloads the prebuilt, SHA256-verified `ezvpn.dll`
 from the pinned `ezvpn` release (and `wintun.dll` from wintun.net) during publish.
 Change which DLL ships by re-pinning with `scripts\bump-dll.ps1`.
+
+## CI
+
+`.github/workflows/windows-ci.yml` runs on every push to `main`, every PR, and
+on demand: build the solution, run the Core tests, publish the self-contained
+app (the step where the native DLLs become *required*, so a bad pin fails here),
+and build the MSI. It never releases anything — that stays with `release.yml`.
+
+Two other workflows are `workflow_dispatch`-only: `release.yml` above, and
+`verify-ezvpn-commit.yml`, which builds `ezvpn.dll` from an arbitrary `ezvpn`
+*source commit* and runs the app against it — for validating a core change
+before it is released and pinned.
+
+The same CI steps run on a local Hyper-V Windows Server VM, against your working
+tree including uncommitted changes, so a Windows-only failure can be found
+without pushing:
+
+```powershell
+pwsh ./ci/windows/remote.ps1            # build, test, publish, MSI — on the VM
+pwsh ./ci/windows/remote.ps1 doctor     # what toolchain the VM has
+```
+
+See [`docs/windows-vm-ci.md`](docs/windows-vm-ci.md) for the VM, provisioning
+(`remote.ps1 provision`), and where it differs from the GitHub runner. On a
+Windows dev box, `.\ci\windows\ci.ps1` runs the same steps locally with no VM
+involved.
 
 ## Usage
 
