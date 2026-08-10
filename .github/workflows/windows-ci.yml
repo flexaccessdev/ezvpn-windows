@@ -1,0 +1,65 @@
+name: Windows CI
+
+# Build-and-test only — no release steps. release.yml is still the only thing
+# that tags, versions and publishes an MSI.
+#
+# Runs on every change rather than whenever someone remembers to dispatch it
+# (it replaces the old manual-only validate.yml). Still dispatchable against an
+# arbitrary branch:
+#   gh workflow run windows-ci.yml --ref <branch>
+#
+# The same steps, in the same order, run locally on the Hyper-V CI VM via
+# ci\windows\ci.ps1 — see docs/windows-vm-ci.md. When the two disagree, this
+# file is right and that one is stale.
+#
+# Advisory, not a gate: `main` carries no branch protection, so nothing here is
+# a *required* status check and a red run never blocks a merge.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 10.0 builds everything; the 8.0 runtime is what actually *runs* the
+      # net8.0 Core tests. windows-latest happens to preinstall it, but the CI
+      # VM does not, so ask for it explicitly and keep the two machines equal.
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      # The native ezvpn.dll / wintun.dll are only needed at RUNTIME, so the
+      # solution compiles and the Core tests run without them.
+      - name: Build solution
+        run: dotnet build ezvpn-windows.slnx -c Release
+
+      - name: Test
+        run: dotnet test tests/Ezvpn.Core.Tests/Ezvpn.Core.Tests.csproj -c Release --no-build
+
+      # Publish is where native.targets *requires* both DLLs (downloaded from
+      # the pinned ezvpn release + wintun.net, SHA256-verified), so this is the
+      # step that catches a bad pin or a broken download — a plain build only
+      # warns.
+      - name: Publish app (self-contained)
+        shell: pwsh
+        run: |
+          dotnet publish src/Ezvpn.App/Ezvpn.App.csproj -c Release -r win-x64 --self-contained -o publish
+          if (-not (Test-Path publish/ezvpn.dll)) { throw "ezvpn.dll missing from publish" }
+          if (-not (Test-Path publish/wintun.dll)) { throw "wintun.dll missing from publish" }
+
+      # Must stay in step with release.yml, or CI stops building what users
+      # actually download. ProductVersion is left at the project default here —
+      # nothing is published, so the upgrade-comparison value does not matter.
+      - name: Build MSI
+        shell: pwsh
+        run: |
+          $pub = (Resolve-Path publish).Path
+          dotnet build installer/Ezvpn.Installer.wixproj -c Release "-p:PublishDir=$pub"

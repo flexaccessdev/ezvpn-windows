@@ -17,6 +17,11 @@ The Rust core + C FFI live in the `../ezvpn` repo (`src/ffi_windows.rs`,
 - Native DLLs are runtime-only, so the app compiles/tests without them. They are
   copied into output for running/packaging (from `native/`, or from
   `..\ezvpn\dist\windows` when `EZVPN_LOCAL_DLL=1`).
+- CI is `.github/workflows/windows-ci.yml` (push/PR/dispatch: build, test,
+  publish, MSI). `ci\windows\ci.ps1` is the same steps, run natively; when the
+  two disagree the workflow is right. `pwsh ci/windows/remote.ps1` ships the
+  working tree to the Hyper-V VM (`windows-ci-build`, shared with `../wrustic`)
+  and runs them there — see `docs/windows-vm-ci.md`.
 
 ## Conventions
 
