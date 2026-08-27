@@ -17,13 +17,16 @@ namespace Ezvpn.App.Services;
 /// </summary>
 public sealed class CredentialAuthKeyStore : IAuthKeyRecordStore
 {
+    // Nullable on the way in: System.Text.Json does not enforce non-nullable
+    // annotations, so an explicit `"secret": null` in a hand-edited credential
+    // would land as null however this is declared. Better to say so and check.
     private sealed class Record
     {
         [JsonPropertyName("name")]
-        public string Name { get; set; } = "";
+        public string? Name { get; set; }
 
         [JsonPropertyName("secret")]
-        public string Secret { get; set; } = "";
+        public string? Secret { get; set; }
     }
 
     public IReadOnlyList<StoredAuthKey> LoadAll()
@@ -43,9 +46,13 @@ public sealed class CredentialAuthKeyStore : IAuthKeyRecordStore
                 // rather than refusing every key.
                 continue;
             }
-            if (record is not null && record.Secret.Length > 0)
+            // A record with a missing or empty secret can never connect, so treat
+            // it as corrupt and skip it like undecodable JSON — reading its length
+            // unchecked would throw instead, taking the whole store down with it.
+            // A missing name is not fatal: the key still works and can be renamed.
+            if (record is not null && !string.IsNullOrEmpty(record.Secret))
             {
-                result.Add(new StoredAuthKey(id, record.Name, record.Secret));
+                result.Add(new StoredAuthKey(id, record.Name ?? "", record.Secret));
             }
         }
         return result;

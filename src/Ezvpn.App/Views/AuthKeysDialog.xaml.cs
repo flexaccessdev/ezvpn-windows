@@ -148,6 +148,29 @@ public sealed partial class AuthKeysDialog : ContentDialog
         }
     }
 
+    /// <summary>
+    /// Copy a secret key. Unlike the public half it is kept out of clipboard
+    /// history (Win+V) and off the Cloud Clipboard, so the most sensitive thing
+    /// the app holds isn't left sitting in a history pane or synced to the user's
+    /// other machines. The Apple app's expiring pasteboard copy is the same idea;
+    /// Windows has no expiry, so this is the closest equivalent.
+    /// </summary>
+    private void CopySecretToClipboard(string secret)
+    {
+        try
+        {
+            var package = new DataPackage { RequestedOperation = DataPackageOperation.Copy };
+            package.SetText(secret);
+            Clipboard.SetContentWithOptions(
+                package,
+                new ClipboardContentOptions { IsAllowedInHistory = false, IsRoamable = false });
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Couldn't copy to the clipboard: {ex.Message}");
+        }
+    }
+
     /// <summary>Remember which row's confirmation is being shown.</summary>
     private void OnConfirmFlyoutOpening(object? sender, object args) =>
         _confirmKeyId = ((sender as FlyoutBase)?.Target as FrameworkElement)?.Tag as string;
@@ -157,7 +180,7 @@ public sealed partial class AuthKeysDialog : ContentDialog
         CloseFlyout(sender);
         if (ConfirmedKey() is { } key)
         {
-            CopyToClipboard(key.Secret);
+            CopySecretToClipboard(key.Secret);
         }
     }
 

@@ -34,6 +34,13 @@ public sealed partial class TunnelEditDialog : ContentDialog
         var selectedId = SelectedKeyId;
         KeyBox.ItemsSource = keys;
         KeyBox.SelectedItem = keys.FirstOrDefault(k => k.Id == selectedId);
+        // A key that was selected and is now gone (deleted from the key manager
+        // this dialog just came back from) empties the picker, so explain it the
+        // same way LoadFrom does rather than leaving it blank.
+        if (selectedId is not null && KeyBox.SelectedItem is null)
+        {
+            MissingKeyBar.IsOpen = true;
+        }
         UpdatePublicKeyText();
     }
 
