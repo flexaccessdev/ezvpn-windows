@@ -62,11 +62,10 @@ public sealed partial class TunnelEditDialog : ContentDialog
 
         var keys = (IReadOnlyList<AuthKeyStore.Key>?)KeyBox.ItemsSource ?? Array.Empty<AuthKeyStore.Key>();
         KeyBox.SelectedItem = keys.FirstOrDefault(k => k.Id == profile.AuthKeyId);
-        // The profile keeps its own copy of the secret, so a key deleted from the
-        // list still connects — but there is nothing to preselect and nothing to
-        // re-save with, so say so instead of showing an empty picker with no
-        // explanation.
-        MissingKeyBar.IsOpen = profile.AuthKeyId.Length > 0 && KeyBox.SelectedItem is null;
+        // Nothing to preselect: the key was deleted from the list, or the profile
+        // predates key auth. Say so rather than showing an empty picker with no
+        // explanation — a saved profile always names a key otherwise.
+        MissingKeyBar.IsOpen = KeyBox.SelectedItem is null;
         UpdatePublicKeyText();
     }
 

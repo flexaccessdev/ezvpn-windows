@@ -10,8 +10,8 @@ namespace Ezvpn.App.Services;
 ///
 /// Three kinds of entry live here, distinguished by target prefix:
 /// <list type="bullet">
-/// <item><c>ezvpn:&lt;profileId&gt;</c> — the profile's copy of the ed25519 auth
-/// key it connects with (what <c>ezvpn_start</c> is handed).</item>
+/// <item><c>ezvpn-profile-key:&lt;profileId&gt;</c> — the profile's copy of the
+/// ed25519 auth key it connects with (what <c>ezvpn_start</c> is handed).</item>
 /// <item><c>ezvpn-relay:&lt;profileId&gt;</c> — the optional shared relay bearer
 /// token.</item>
 /// <item><c>ezvpn-key:&lt;keyId&gt;</c> — one record of the app's named auth-key
@@ -27,7 +27,12 @@ public static class SecretStore
     /// <summary>Target prefix of the named auth-key records.</summary>
     internal const string KeyRecordPrefix = "ezvpn-key:";
 
-    private static string AuthKeyTargetFor(Guid id) => "ezvpn:" + id.ToString("N");
+    // Deliberately not the "ezvpn:<profileId>" target that held the pre-shared
+    // auth token this replaced: that credential stores a different kind of secret,
+    // and reading one back as an ed25519 key would only produce a baffling
+    // "must decode to 32 bytes" at connect time. A profile from an older build
+    // therefore has no auth key at all, which is exactly what it is.
+    private static string AuthKeyTargetFor(Guid id) => "ezvpn-profile-key:" + id.ToString("N");
     private static string RelayTargetFor(Guid id) => "ezvpn-relay:" + id.ToString("N");
 
     /// <summary>Store (or overwrite) a profile's copy of its auth key.</summary>

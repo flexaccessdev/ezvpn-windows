@@ -20,7 +20,7 @@ public sealed class TunnelViewModel : ObservableObject
     private ConnectionState _state = ConnectionState.Disconnected;
     private ClientStatus? _status;
     private string? _error;
-    private string _authKeyName = "None selected";
+    private string _authKeyName = "Not in the key list";
 
     public TunnelViewModel(TunnelProfile profile)
     {

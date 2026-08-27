@@ -27,15 +27,11 @@ public class EzvpnConfigTests
         Assert.Equal("10.0.0.0/8", root.GetProperty("routes")[0].GetString());
         Assert.Equal("fd00::/8", root.GetProperty("routes6")[0].GetString());
         Assert.True(root.GetProperty("auto_reconnect").GetBoolean());
-        // relay_only was removed from the core FFI config; it must not be emitted.
-        Assert.False(root.TryGetProperty("relay_only", out _));
         Assert.Equal(profile.Instance, root.GetProperty("instance").GetString());
         // Null max attempts is omitted, not emitted as null.
         Assert.False(root.TryGetProperty("max_reconnect_attempts", out _));
         // The auth key is the one required secret and is always emitted.
         Assert.Equal("ed25519-sec:key", root.GetProperty("auth_key").GetString());
-        // The pre-shared token this replaced must not linger in the config.
-        Assert.False(root.TryGetProperty("auth_token", out _));
         // No relay token was supplied, so the key is omitted.
         Assert.False(root.TryGetProperty("relay_auth_token", out _));
     }

@@ -48,9 +48,10 @@ The Rust core + C FFI live in the `../ezvpn` repo (`src/ffi_windows.rs`,
   which is what `ezvpn_start` is handed. So a key deleted from the list doesn't
   break profiles already saved with it.
 - All secrets live in Windows Credential Manager (`SecretStore`), never in the
-  profile JSON: `ezvpn:<profileId>` (the profile's auth key), `ezvpn-relay:<profileId>`
-  (the optional relay token) and `ezvpn-key:<keyId>` (one record per named key —
-  one credential each, because a credential blob caps out at 2560 bytes).
+  profile JSON: `ezvpn-profile-key:<profileId>` (the profile's auth key),
+  `ezvpn-relay:<profileId>` (the optional relay token) and `ezvpn-key:<keyId>`
+  (one record per named key — one credential each, because a credential blob caps
+  out at 2560 bytes).
 - Installer uses **WiX v5** (v6/v7 require accepting the paid OSMF EULA). The MSI
   is unsigned by design; code signing and MSIX/Store packaging are out of scope.
 - Use classic `[DllImport]` (not `[LibraryImport]`) for the `advapi32`

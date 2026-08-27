@@ -42,7 +42,7 @@
 
             <InfoBar x:Name="MissingKeyBar" IsOpen="False" Severity="Warning" IsClosable="False"
                      Title="Auth key missing"
-                     Message="The auth key this profile used is no longer in the key list. Pick a key before saving." />
+                     Message="This profile doesn't name a key in the key list. Pick one before saving." />
 
             <TextBox x:Name="RelayBox" Header="Relay URLs (optional, comma-separated)"
                      PlaceholderText="https://relay.example.com"
