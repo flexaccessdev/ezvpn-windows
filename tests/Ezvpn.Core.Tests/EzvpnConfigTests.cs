@@ -19,7 +19,7 @@ public class EzvpnConfigTests
             AutoReconnect = true,
         };
 
-        var json = EzvpnConfig.Build(profile, "tok");
+        var json = EzvpnConfig.Build(profile, "ed25519-sec:key");
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
@@ -32,6 +32,10 @@ public class EzvpnConfigTests
         Assert.Equal(profile.Instance, root.GetProperty("instance").GetString());
         // Null max attempts is omitted, not emitted as null.
         Assert.False(root.TryGetProperty("max_reconnect_attempts", out _));
+        // The auth key is the one required secret and is always emitted.
+        Assert.Equal("ed25519-sec:key", root.GetProperty("auth_key").GetString());
+        // The pre-shared token this replaced must not linger in the config.
+        Assert.False(root.TryGetProperty("auth_token", out _));
         // No relay token was supplied, so the key is omitted.
         Assert.False(root.TryGetProperty("relay_auth_token", out _));
     }
@@ -45,7 +49,7 @@ public class EzvpnConfigTests
             RelayUrls = { "https://relay.example/" },
         };
 
-        var json = EzvpnConfig.Build(profile, "tok", "relay-secret");
+        var json = EzvpnConfig.Build(profile, "ed25519-sec:key", "relay-secret");
         using var doc = JsonDocument.Parse(json);
 
         Assert.Equal("relay-secret", doc.RootElement.GetProperty("relay_auth_token").GetString());
@@ -60,7 +64,7 @@ public class EzvpnConfigTests
             RelayUrls = { "https://relay.example/" },
         };
 
-        var json = EzvpnConfig.Build(profile, "tok", "   ");
+        var json = EzvpnConfig.Build(profile, "ed25519-sec:key", "   ");
         using var doc = JsonDocument.Parse(json);
 
         Assert.False(doc.RootElement.TryGetProperty("relay_auth_token", out _));
@@ -70,11 +74,11 @@ public class EzvpnConfigTests
     public void Build_RelayAuthTokenWithoutRelays_Throws()
     {
         var profile = new TunnelProfile { ServerNodeId = "node" };
-        Assert.Throws<ArgumentException>(() => EzvpnConfig.Build(profile, "tok", "relay-secret"));
+        Assert.Throws<ArgumentException>(() => EzvpnConfig.Build(profile, "ed25519-sec:key", "relay-secret"));
     }
 
     [Fact]
-    public void Build_IncludesTokenAndMaxAttempts_WhenSet()
+    public void Build_IncludesAuthKeyAndMaxAttempts_WhenSet()
     {
         var profile = new TunnelProfile
         {
@@ -82,16 +86,16 @@ public class EzvpnConfigTests
             MaxReconnectAttempts = 5,
         };
 
-        var json = EzvpnConfig.Build(profile, "v0123456789");
+        var json = EzvpnConfig.Build(profile, "ed25519-sec:AAAA");
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
-        Assert.Equal("v0123456789", root.GetProperty("auth_token").GetString());
+        Assert.Equal("ed25519-sec:AAAA", root.GetProperty("auth_key").GetString());
         Assert.Equal(5u, root.GetProperty("max_reconnect_attempts").GetUInt32());
     }
 
     [Fact]
-    public void Build_BlankOrNullToken_Throws()
+    public void Build_BlankOrNullAuthKey_Throws()
     {
         var profile = new TunnelProfile { ServerNodeId = "node" };
         Assert.Throws<ArgumentException>(() => EzvpnConfig.Build(profile, null));

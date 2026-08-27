@@ -14,8 +14,13 @@ public static class TunnelValidation
 {
     public const int MaxNameLength = 64;
 
-    /// <summary>Validate a profile name. Returns null if valid, else an error message.</summary>
-    public static string? ValidateName(string? name, IEnumerable<string>? existingNames = null)
+    /// <summary>
+    /// Validate a profile name. Returns null if valid, else an error message.
+    /// <paramref name="subject"/> names what is being named, so the same rules
+    /// can report on an auth key ("A key with this name already exists.").
+    /// </summary>
+    public static string? ValidateName(
+        string? name, IEnumerable<string>? existingNames = null, string subject = "profile")
     {
         var trimmed = (name ?? "").Trim();
         if (trimmed.Length == 0)
@@ -29,7 +34,7 @@ public static class TunnelValidation
         if (existingNames is not null &&
             existingNames.Any(n => string.Equals(n.Trim(), trimmed, StringComparison.OrdinalIgnoreCase)))
         {
-            return "A profile with this name already exists.";
+            return $"A {subject} with this name already exists.";
         }
         return null;
     }
@@ -54,14 +59,16 @@ public static class TunnelValidation
     }
 
     /// <summary>
-    /// Validate the auth token. It is required — a null/blank token returns an
-    /// error message; otherwise null.
+    /// Validate a profile's auth-key selection. A profile authenticates with one
+    /// of the app's named keys (see <see cref="AuthKeyStore"/>), so an id is
+    /// required; the secret itself is validated by the key store, which derives
+    /// its public half through the Rust core.
     /// </summary>
-    public static string? ValidateAuthToken(string? token)
+    public static string? ValidateAuthKeyId(string? authKeyId)
     {
-        if (string.IsNullOrWhiteSpace(token))
+        if (string.IsNullOrWhiteSpace(authKeyId))
         {
-            return "Auth token is required.";
+            return "An auth key is required — pick one, or add one under Manage keys.";
         }
         return null;
     }

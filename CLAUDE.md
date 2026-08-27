@@ -36,8 +36,20 @@ The Rust core + C FFI live in the `../ezvpn` repo (`src/ffi_windows.rs`,
   `EzvpnConfig.Build` produces it. Keep them in sync.
 - `ClientStatus` mirrors the Rust `ClientStatus` (snake_case) from
   `../ezvpn/src/control.rs`.
-- Auth tokens live in Windows Credential Manager (`TokenStore`), never in the
-  profile JSON.
+- The client authenticates with an **ed25519 keypair**, not a pre-shared token:
+  the config's `auth_key` is the client's `ed25519-sec:…` secret, and its public
+  half goes on the server's `authorized_keys` file. Keys are generated and parsed
+  only through the FFI (`ezvpn_generate_client_key` / `ezvpn_client_public_key`,
+  wrapped by `Core/Interop/AuthKey`) — never reimplement the key format in .NET.
+- Like the Apple and Android apps, the app keeps one shared list of **named**
+  keys (`AuthKeyStore`) that profiles reference by id (`TunnelProfile.AuthKeyId`);
+  saving a profile copies that key's secret into the profile's own credential,
+  which is what `ezvpn_start` is handed. So a key deleted from the list doesn't
+  break profiles already saved with it.
+- All secrets live in Windows Credential Manager (`SecretStore`), never in the
+  profile JSON: `ezvpn:<profileId>` (the profile's auth key), `ezvpn-relay:<profileId>`
+  (the optional relay token) and `ezvpn-key:<keyId>` (one record per named key —
+  one credential each, because a credential blob caps out at 2560 bytes).
 - Installer uses **WiX v5** (v6/v7 require accepting the paid OSMF EULA). The MSI
   is unsigned by design; code signing and MSIX/Store packaging are out of scope.
 - Use classic `[DllImport]` (not `[LibraryImport]`) for the `advapi32`

@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="Ezvpn.App.Views.AuthKeysDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Auth keys"
+    CloseButtonText="Done">
+
+    <ScrollViewer>
+        <StackPanel Spacing="12" MinWidth="520">
+
+            <InfoBar x:Name="ErrorBar" IsOpen="False" Severity="Error"
+                     IsClosable="True" Title="Can't do that" />
+
+            <TextBlock TextWrapping="Wrap"
+                       Style="{ThemeResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="A profile authenticates with the key it selects. Put a key's public half on the server's authorized_keys file. Deleting a key here doesn't disconnect profiles already saved with it — re-save a profile to change the key it uses." />
+
+            <TextBlock x:Name="EmptyText" TextWrapping="Wrap" Visibility="Collapsed"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="No auth keys yet. Generate one below (or paste a secret key from another device), then put its public key on the server." />
+
+            <ListView x:Name="KeyList" SelectionMode="None" MaxHeight="280">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="0,6" ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Spacing="2">
+                                <!-- Renaming happens in place: the name commits on
+                                     Enter or when the box loses focus. -->
+                                <TextBox Text="{Binding Name}" Tag="{Binding Id}"
+                                         LostFocus="OnKeyNameLostFocus"
+                                         KeyDown="OnKeyNameKeyDown" />
+                                <TextBlock Text="{Binding PublicKey}"
+                                           FontFamily="Consolas"
+                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextTrimming="CharacterEllipsis"
+                                           IsTextSelectionEnabled="True" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                        Spacing="4" VerticalAlignment="Top">
+                                <Button Tag="{Binding Id}" Click="OnCopyPublicKey"
+                                        ToolTipService.ToolTip="Copy public key">
+                                    <FontIcon Glyph="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="14" />
+                                </Button>
+                                <!-- A flyout's content does not reliably inherit the
+                                     row's DataContext, so the confirmations read
+                                     the key id off the button the flyout hangs on
+                                     (see OnConfirmFlyoutOpening) rather than
+                                     binding to it. -->
+                                <Button Tag="{Binding Id}" ToolTipService.ToolTip="Copy secret key">
+                                    <FontIcon Glyph="&#xE785;" FontFamily="Segoe MDL2 Assets" FontSize="14" />
+                                    <Button.Flyout>
+                                        <Flyout Opening="OnConfirmFlyoutOpening">
+                                            <StackPanel Spacing="8" MaxWidth="300">
+                                                <TextBlock TextWrapping="Wrap"
+                                                           Text="Anyone holding the secret key can connect as this key. Paste it into another device's key import." />
+                                                <Button Click="OnCopySecretKey" Content="Copy secret key" />
+                                            </StackPanel>
+                                        </Flyout>
+                                    </Button.Flyout>
+                                </Button>
+                                <Button Tag="{Binding Id}" ToolTipService.ToolTip="Delete key">
+                                    <FontIcon Glyph="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14" />
+                                    <Button.Flyout>
+                                        <Flyout Opening="OnConfirmFlyoutOpening">
+                                            <StackPanel Spacing="8" MaxWidth="300">
+                                                <TextBlock TextWrapping="Wrap"
+                                                           Text="The secret key is removed from this device's key list. The server keeps trusting its public key until that's taken off the authorized_keys file." />
+                                                <Button Click="OnDeleteKey" Content="Delete key"
+                                                        Style="{ThemeResource AccentButtonStyle}" />
+                                            </StackPanel>
+                                        </Flyout>
+                                    </Button.Flyout>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+            <TextBlock Text="Add a key" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+
+            <TextBox x:Name="NewNameBox" Header="Name" PlaceholderText="e.g. this pc" />
+
+            <PasswordBox x:Name="NewSecretBox"
+                         Header="Secret key (leave blank to generate a new one)"
+                         PlaceholderText="ed25519-sec:…" />
+
+            <TextBlock TextWrapping="Wrap"
+                       Style="{ThemeResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="Paste a secret key generated elsewhere — copied from another device, or by &quot;flexaccess-keys generate-auth-key&quot; — to reuse that identity. Names only exist in this app's key list." />
+
+            <Button x:Name="AddKeyButton" Content="Add key" Click="OnAddKey"
+                    Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" />
+
+        </StackPanel>
+    </ScrollViewer>
+</ContentDialog>

@@ -37,7 +37,7 @@ See `docs/Windows-App.md` in the `ezvpn` repo for the FFI contract.
 | Project | What |
 |---|---|
 | `src/Ezvpn.Core` | Pure model + config JSON builder + validation + status DTOs + the `ezvpn.dll` P/Invoke wrapper (`EzvpnSession`). No WinUI; unit-tested. |
-| `src/Ezvpn.App` | The WinUI 3 app: profile list/detail/edit, connect/disconnect, live status polling. Stores profiles under `%ProgramData%\ezvpn\profiles` and the auth token in Windows Credential Manager. |
+| `src/Ezvpn.App` | The WinUI 3 app: profile list/detail/edit, the auth-key manager, connect/disconnect, live status polling. Stores profiles under `%ProgramData%\ezvpn\profiles` and every secret in Windows Credential Manager. |
 | `tests/Ezvpn.Core.Tests` | xUnit tests for the pure logic. |
 | `installer/` | WiX v5 MSI that bundles the published app + `ezvpn.dll` + `wintun.dll`. |
 
@@ -164,8 +164,20 @@ involved.
 ## Usage
 
 1. Launch ezvpn (accept the UAC prompt).
-2. **+** to add a profile: give it a name, the server's iroh node id, the auth
-   token (required), and optional split-tunnel routes (`10.0.0.0/8`, `fd00::/8`, …).
-3. Select it and **Connect**. The status panel shows the assigned IP, gateway,
+2. Add an **auth key** (the key button in the left toolbar, or *Manage keys…* in
+   the profile editor): name it and leave the secret blank to generate a fresh
+   ed25519 keypair — or paste an `ed25519-sec:…` secret from another device to
+   reuse that identity. Copy the key's **public** half onto the server's
+   `authorized_keys` file; the secret never leaves the machine except through the
+   explicit copy action.
+3. **+** to add a profile: give it a name, the server's iroh node id, the auth key
+   to authenticate with (required), and optional split-tunnel routes
+   (`10.0.0.0/8`, `fd00::/8`, …).
+4. Select it and **Connect**. The status panel shows the assigned IP, gateway,
    routes, and the live iroh connection path once connected.
-4. **Disconnect** tears down the tunnel and routes.
+5. **Disconnect** tears down the tunnel and routes.
+
+Keys are shared across profiles: several profiles can authenticate with the same
+device identity. A profile keeps its own copy of the secret it was saved with, so
+deleting a key from the list doesn't break profiles already using it — but they
+can't be re-saved until a key is picked again.

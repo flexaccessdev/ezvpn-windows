@@ -31,11 +31,13 @@ public sealed class TunnelsManager : ObservableObject
     {
         _dispatcher = dispatcher;
         _store = new ProfileStore();
+        AuthKeys = new AuthKeyStore(new CredentialAuthKeyStore(), AuthKey.PublicKeyFor);
 
         foreach (var profile in _store.LoadAll())
         {
             Tunnels.Add(new TunnelViewModel(profile));
         }
+        RefreshKeyNames();
 
         _timer = _dispatcher.CreateTimer();
         _timer.Interval = PollInterval;
@@ -45,20 +47,28 @@ public sealed class TunnelsManager : ObservableObject
 
     public ObservableCollection<TunnelViewModel> Tunnels { get; } = new();
 
+    /// <summary>
+    /// The app's shared, named auth keys. Profiles reference one by id; its
+    /// secret is copied into the profile's own credential on save.
+    /// </summary>
+    public AuthKeyStore AuthKeys { get; }
+
     public TunnelViewModel? Active => _active;
 
     // --- Profile CRUD ---------------------------------------------------------
 
-    /// <summary>Add a new profile with its secret token(s) and persist it.</summary>
-    public TunnelViewModel Add(TunnelProfile profile, string authToken, string? relayAuthToken)
+    /// <summary>Add a new profile with its secrets and persist it.</summary>
+    public TunnelViewModel Add(TunnelProfile profile, string? relayAuthToken)
     {
+        var authKey = RequireAuthKey(profile);
+
         // Persist both stores before touching the live model. If a credential
-        // write fails, roll the profile (and any token) back so nothing is left
+        // write fails, roll the profile (and any secret) back so nothing is left
         // half-created.
         _store.Save(profile);
         try
         {
-            TokenStore.Save(profile.Id, authToken);
+            SecretStore.SaveAuthKey(profile.Id, authKey);
         }
         catch
         {
@@ -71,32 +81,35 @@ public sealed class TunnelsManager : ObservableObject
         }
         catch
         {
-            TokenStore.Delete(profile.Id);
+            SecretStore.DeleteAuthKey(profile.Id);
             _store.Delete(profile.Id);
             throw;
         }
 
         var vm = new TunnelViewModel(profile);
+        vm.AuthKeyName = KeyNameFor(profile);
         Tunnels.Add(vm);
         return vm;
     }
 
-    /// <summary>Persist edits to an existing profile and its secret token(s).</summary>
-    public void Update(TunnelViewModel vm, string authToken, string? relayAuthToken)
+    /// <summary>Persist edits to an existing profile and its secrets.</summary>
+    public void Update(TunnelViewModel vm, string? relayAuthToken)
     {
-        // Write the credential first (nothing on disk changes if it fails), then
-        // the profile atomically. If a later step fails, restore the prior
+        var authKey = RequireAuthKey(vm.Profile);
+
+        // Write the credentials first (nothing on disk changes if they fail),
+        // then the profile atomically. If a later step fails, restore the prior
         // credentials so the stores can't diverge.
-        var previousToken = TokenStore.Load(vm.Profile.Id);
-        var previousRelay = TokenStore.LoadRelay(vm.Profile.Id);
-        TokenStore.Save(vm.Profile.Id, authToken);
+        var previousKey = SecretStore.LoadAuthKey(vm.Profile.Id);
+        var previousRelay = SecretStore.LoadRelayToken(vm.Profile.Id);
+        SecretStore.SaveAuthKey(vm.Profile.Id, authKey);
         try
         {
             SetRelayToken(vm.Profile.Id, relayAuthToken);
         }
         catch
         {
-            RestoreAuthToken(vm.Profile.Id, previousToken);
+            RestoreAuthKey(vm.Profile.Id, previousKey);
             throw;
         }
         try
@@ -105,15 +118,16 @@ public sealed class TunnelsManager : ObservableObject
         }
         catch
         {
-            RestoreAuthToken(vm.Profile.Id, previousToken);
+            RestoreAuthKey(vm.Profile.Id, previousKey);
             SetRelayToken(vm.Profile.Id, previousRelay);
             throw;
         }
 
+        vm.AuthKeyName = KeyNameFor(vm.Profile);
         vm.NotifyProfileChanged();
     }
 
-    /// <summary>Disconnect (if active), then delete the profile and its token(s).</summary>
+    /// <summary>Disconnect (if active), then delete the profile and its secrets.</summary>
     public void Delete(TunnelViewModel vm)
     {
         if (ReferenceEquals(_active, vm))
@@ -126,8 +140,8 @@ public sealed class TunnelsManager : ObservableObject
         _store.Delete(vm.Profile.Id);
         try
         {
-            TokenStore.Delete(vm.Profile.Id);
-            TokenStore.DeleteRelay(vm.Profile.Id);
+            SecretStore.DeleteAuthKey(vm.Profile.Id);
+            SecretStore.DeleteRelayToken(vm.Profile.Id);
         }
         catch
         {
@@ -138,11 +152,44 @@ public sealed class TunnelsManager : ObservableObject
         Tunnels.Remove(vm);
     }
 
-    /// <summary>The current stored auth token for a profile (for pre-filling the edit form).</summary>
-    public string? LoadToken(TunnelViewModel vm) => TokenStore.Load(vm.Profile.Id);
-
     /// <summary>The current stored relay token for a profile, or null if none.</summary>
-    public string? LoadRelayToken(TunnelViewModel vm) => TokenStore.LoadRelay(vm.Profile.Id);
+    public string? LoadRelayToken(TunnelViewModel vm) => SecretStore.LoadRelayToken(vm.Profile.Id);
+
+    /// <summary>
+    /// Re-read every profile's auth-key name from the key list — after the keys
+    /// screen has been open, where a key may have been renamed or deleted.
+    /// </summary>
+    public void RefreshKeyNames()
+    {
+        foreach (var vm in Tunnels)
+        {
+            vm.AuthKeyName = KeyNameFor(vm.Profile);
+        }
+    }
+
+    /// <summary>
+    /// The secret of the key the profile selected. Saving requires a key that is
+    /// still in the list — the editor enforces that, so reaching here without one
+    /// is a bug rather than user error.
+    /// </summary>
+    private string RequireAuthKey(TunnelProfile profile) =>
+        AuthKeys.Find(profile.AuthKeyId)?.Secret
+        ?? throw new InvalidOperationException(
+            "This profile has no auth key selected. Pick one in the profile editor.");
+
+    /// <summary>
+    /// How the UI names a profile's key: its name, or a notice when the key has
+    /// been deleted from the list (the profile still connects with its own copy
+    /// of the secret, but cannot be re-saved until a key is picked again).
+    /// </summary>
+    private string KeyNameFor(TunnelProfile profile)
+    {
+        if (string.IsNullOrEmpty(profile.AuthKeyId))
+        {
+            return "None selected";
+        }
+        return AuthKeys.Find(profile.AuthKeyId)?.Name ?? "No longer in the key list";
+    }
 
     /// <summary>Persist (or clear) the optional relay token. A null/blank token
     /// deletes any stored item, so removing it in the editor removes the secret.</summary>
@@ -150,23 +197,23 @@ public sealed class TunnelsManager : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(token))
         {
-            TokenStore.DeleteRelay(id);
+            SecretStore.DeleteRelayToken(id);
         }
         else
         {
-            TokenStore.SaveRelay(id, token);
+            SecretStore.SaveRelayToken(id, token);
         }
     }
 
-    private static void RestoreAuthToken(Guid id, string? previousToken)
+    private static void RestoreAuthKey(Guid id, string? previousKey)
     {
-        if (previousToken is not null)
+        if (previousKey is not null)
         {
-            TokenStore.Save(id, previousToken);
+            SecretStore.SaveAuthKey(id, previousKey);
         }
         else
         {
-            TokenStore.Delete(id);
+            SecretStore.DeleteAuthKey(id);
         }
     }
 
@@ -193,12 +240,15 @@ public sealed class TunnelsManager : ObservableObject
 
         vm.SetConnecting();
 
-        var token = TokenStore.Load(vm.Profile.Id);
-        var relayToken = TokenStore.LoadRelay(vm.Profile.Id);
-        var json = EzvpnConfig.Build(vm.Profile, token, relayToken);
-
         try
         {
+            // Reading the credentials and building the config can fail too (an
+            // unreadable or missing auth key); keep it inside the try so it
+            // surfaces as a tunnel error like any other connect failure.
+            var authKey = SecretStore.LoadAuthKey(vm.Profile.Id);
+            var relayToken = SecretStore.LoadRelayToken(vm.Profile.Id);
+            var json = EzvpnConfig.Build(vm.Profile, authKey, relayToken);
+
             var session = await Task.Run(() => EzvpnSession.Start(json)).ConfigureAwait(true);
             if (generation != _generation)
             {

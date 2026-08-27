@@ -1,4 +1,5 @@
 using Ezvpn.Core;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Ezvpn.App.Views;
@@ -13,15 +14,37 @@ public sealed partial class TunnelEditDialog : ContentDialog
         InitializeComponent();
     }
 
+    /// <summary>
+    /// Set when the user asked for the key manager. WinUI allows only one
+    /// <see cref="ContentDialog"/> at a time, so this dialog hides itself and the
+    /// caller shows the keys dialog and then re-shows this one — the same
+    /// instance, so the half-filled form survives the round trip.
+    /// </summary>
+    public bool ManageKeysRequested { get; private set; }
+
     /// <summary>Names to reject as duplicates (exclude the profile being edited).</summary>
     public void SetExistingNames(IEnumerable<string> names) => _existingNames = names.ToArray();
 
-    /// <summary>Prefill the form from an existing profile + its stored token(s).</summary>
-    public void LoadFrom(TunnelProfile profile, string? token, string? relayToken)
+    /// <summary>
+    /// Fill the auth-key picker, keeping whatever key is currently selected (by
+    /// id) if it is still listed. Call again after the keys dialog has been open.
+    /// </summary>
+    public void SetKeys(IReadOnlyList<AuthKeyStore.Key> keys)
+    {
+        var selectedId = SelectedKeyId;
+        KeyBox.ItemsSource = keys;
+        KeyBox.SelectedItem = keys.FirstOrDefault(k => k.Id == selectedId);
+        UpdatePublicKeyText();
+    }
+
+    /// <summary>The id of the selected auth key, or null when none is selected.</summary>
+    public string? SelectedKeyId => (KeyBox.SelectedItem as AuthKeyStore.Key)?.Id;
+
+    /// <summary>Prefill the form from an existing profile + its stored relay token.</summary>
+    public void LoadFrom(TunnelProfile profile, string? relayToken)
     {
         NameBox.Text = profile.Name;
         NodeIdBox.Text = profile.ServerNodeId;
-        TokenBox.Password = token ?? "";
         RelayBox.Text = string.Join(", ", profile.RelayUrls);
         RelayTokenBox.Password = relayToken ?? "";
         RoutesBox.Text = string.Join(", ", profile.Routes);
@@ -29,35 +52,82 @@ public sealed partial class TunnelEditDialog : ContentDialog
         AutoReconnectCheck.IsChecked = profile.AutoReconnect;
         MaxAttemptsBox.Value = profile.MaxReconnectAttempts ?? double.NaN;
         UpdateRelayTokenEnabled();
+
+        var keys = (IReadOnlyList<AuthKeyStore.Key>?)KeyBox.ItemsSource ?? Array.Empty<AuthKeyStore.Key>();
+        KeyBox.SelectedItem = keys.FirstOrDefault(k => k.Id == profile.AuthKeyId);
+        // The profile keeps its own copy of the secret, so a key deleted from the
+        // list still connects — but there is nothing to preselect and nothing to
+        // re-save with, so say so instead of showing an empty picker with no
+        // explanation.
+        MissingKeyBar.IsOpen = profile.AuthKeyId.Length > 0 && KeyBox.SelectedItem is null;
+        UpdatePublicKeyText();
     }
 
     /// <summary>The optional relay token from the form, or null when blank.</summary>
     public string? RelayToken =>
         string.IsNullOrWhiteSpace(RelayTokenBox.Password) ? null : RelayTokenBox.Password;
 
-    /// <summary>Build a brand-new profile and its token(s) from the form (for Add).</summary>
-    public (TunnelProfile Profile, string Token, string? RelayToken) BuildResult()
+    /// <summary>Build a brand-new profile and its relay token from the form (for Add).</summary>
+    public (TunnelProfile Profile, string? RelayToken) BuildResult()
     {
         var profile = new TunnelProfile();
-        var token = ApplyTo(profile);
-        return (profile, token, RelayToken);
+        ApplyTo(profile);
+        return (profile, RelayToken);
     }
 
     /// <summary>
-    /// Write the form into <paramref name="profile"/> and return the (required)
-    /// auth token text. Validation guarantees it is non-blank before Save. The
-    /// optional relay token is read separately via <see cref="RelayToken"/>.
+    /// Write the form into <paramref name="profile"/>. Only the selected key's
+    /// <em>id</em> lands on the profile; its secret is copied into the profile's
+    /// own credential by <c>TunnelsManager</c>. The optional relay token is read
+    /// separately via <see cref="RelayToken"/>.
     /// </summary>
-    public string ApplyTo(TunnelProfile profile)
+    public void ApplyTo(TunnelProfile profile)
     {
         profile.Name = NameBox.Text.Trim();
         profile.ServerNodeId = NodeIdBox.Text.Trim();
+        profile.AuthKeyId = SelectedKeyId ?? "";
         profile.RelayUrls = TunnelValidation.SplitList(RelayBox.Text);
         profile.Routes = TunnelValidation.SplitList(RoutesBox.Text);
         profile.Routes6 = TunnelValidation.SplitList(Routes6Box.Text);
         profile.AutoReconnect = AutoReconnectCheck.IsChecked ?? true;
         profile.MaxReconnectAttempts = ParseMaxAttempts(MaxAttemptsBox.Value);
-        return TokenBox.Password;
+    }
+
+    // Hide (rather than close) so the caller can re-show this instance with the
+    // form intact once the keys dialog is done. Hide() reports None, which the
+    // caller distinguishes from Cancel by ManageKeysRequested.
+    private void OnManageKeys(object sender, RoutedEventArgs args)
+    {
+        ManageKeysRequested = true;
+        Hide();
+    }
+
+    /// <summary>Cleared by the caller once it has shown the keys dialog.</summary>
+    public void ClearManageKeysRequest() => ManageKeysRequested = false;
+
+    private void OnKeySelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (KeyBox.SelectedItem is not null)
+        {
+            MissingKeyBar.IsOpen = false;
+        }
+        UpdatePublicKeyText();
+    }
+
+    // Show the selected key's public half: it is what has to be on the server's
+    // authorized_keys file, and it is not a secret.
+    private void UpdatePublicKeyText()
+    {
+        if (KeyBox.SelectedItem is AuthKeyStore.Key key)
+        {
+            PublicKeyText.Text = $"Public key (put this on the server): {key.PublicKey}";
+            PublicKeyText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            PublicKeyText.Text = "";
+            PublicKeyText.Visibility = Visibility.Collapsed;
+        }
     }
 
     // The relay token is only meaningful with custom relays: disable (and clear)
@@ -122,10 +192,10 @@ public sealed partial class TunnelEditDialog : ContentDialog
             return nodeError;
         }
 
-        var tokenError = TunnelValidation.ValidateAuthToken(TokenBox.Password);
-        if (tokenError is not null)
+        var keyError = TunnelValidation.ValidateAuthKeyId(SelectedKeyId);
+        if (keyError is not null)
         {
-            return tokenError;
+            return keyError;
         }
 
         // The relay token is custom-relay-only (the core rejects it otherwise).

@@ -24,12 +24,23 @@ public class TunnelValidationTests
     }
 
     [Fact]
-    public void ValidateAuthToken_IsRequired()
+    public void ValidateAuthKeyId_IsRequired()
     {
-        Assert.NotNull(TunnelValidation.ValidateAuthToken(null));
-        Assert.NotNull(TunnelValidation.ValidateAuthToken(""));
-        Assert.NotNull(TunnelValidation.ValidateAuthToken("   "));
-        Assert.Null(TunnelValidation.ValidateAuthToken("v0123456789"));
+        Assert.NotNull(TunnelValidation.ValidateAuthKeyId(null));
+        Assert.NotNull(TunnelValidation.ValidateAuthKeyId(""));
+        Assert.NotNull(TunnelValidation.ValidateAuthKeyId("   "));
+        Assert.Null(TunnelValidation.ValidateAuthKeyId("6b1c9d0e"));
+    }
+
+    [Fact]
+    public void ValidateName_ReportsTheSubjectItWasGiven()
+    {
+        Assert.Contains(
+            "A key with this name already exists.",
+            TunnelValidation.ValidateName("laptop", new[] { "Laptop" }, subject: "key"));
+        Assert.Contains(
+            "A profile with this name already exists.",
+            TunnelValidation.ValidateName("work", new[] { "work" }));
     }
 
     [Theory]

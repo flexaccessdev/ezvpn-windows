@@ -5,9 +5,9 @@ namespace Ezvpn.Core;
 /// <summary>
 /// A saved VPN connection profile. Mirrors the Apple app's <c>TunnelProfile</c>.
 /// There is no server IP/port/hostname — the "server address" is an iroh
-/// <see cref="ServerNodeId"/> (endpoint id). The auth token is the one secret
-/// and is NOT stored here; it lives in Windows Credential Manager keyed by
-/// <see cref="Id"/> (see <c>TokenStore</c>).
+/// <see cref="ServerNodeId"/> (endpoint id). No secret is stored here: the
+/// client's ed25519 auth key and the optional relay bearer token live in Windows
+/// Credential Manager keyed by <see cref="Id"/> (see <c>SecretStore</c>).
 /// </summary>
 public sealed class TunnelProfile
 {
@@ -22,6 +22,16 @@ public sealed class TunnelProfile
     /// <summary>The server's iroh endpoint id (node id).</summary>
     [JsonPropertyName("serverNodeId")]
     public string ServerNodeId { get; set; } = "";
+
+    /// <summary>
+    /// Which key from the app's shared auth-key list this profile authenticates
+    /// with (<see cref="AuthKeyStore.Key.Id"/>). The key's <em>secret</em> is
+    /// never here — it is copied into the profile's own credential on save (see
+    /// <c>SecretStore</c>); this is only the non-secret reference the editor
+    /// re-selects and the UI names the key by.
+    /// </summary>
+    [JsonPropertyName("authKeyId")]
+    public string AuthKeyId { get; set; } = "";
 
     /// <summary>Optional relay URL hints. When empty, iroh uses its default relay map.</summary>
     [JsonPropertyName("relayUrls")]

@@ -16,20 +16,22 @@ public static class EzvpnConfig
     };
 
     /// <summary>
-    /// Serialize <paramref name="profile"/> plus its secret token(s) into the
-    /// <c>ezvpn_start</c> config JSON. The auth token is required; a null/blank
-    /// token throws <see cref="ArgumentException"/>.
+    /// Serialize <paramref name="profile"/> plus its secrets into the
+    /// <c>ezvpn_start</c> config JSON. <paramref name="authKey"/> is the client's
+    /// ed25519 secret key (<c>ed25519-sec:…</c>), whose public half must be on
+    /// the server's authorized-keys file; it is required, and a null/blank key
+    /// throws <see cref="ArgumentException"/>.
     ///
     /// <paramref name="relayAuthToken"/> is the optional shared relay bearer
     /// token. It is only valid with custom relays: a non-blank token with no
     /// <see cref="TunnelProfile.RelayUrls"/> throws (the core rejects it too),
     /// and a null/blank token is omitted from the JSON.
     /// </summary>
-    public static string Build(TunnelProfile profile, string? authToken, string? relayAuthToken = null)
+    public static string Build(TunnelProfile profile, string? authKey, string? relayAuthToken = null)
     {
-        if (string.IsNullOrWhiteSpace(authToken))
+        if (string.IsNullOrWhiteSpace(authKey))
         {
-            throw new ArgumentException("An auth token is required.", nameof(authToken));
+            throw new ArgumentException("An auth key is required.", nameof(authKey));
         }
 
         var relayToken = string.IsNullOrWhiteSpace(relayAuthToken) ? null : relayAuthToken;
@@ -42,7 +44,7 @@ public static class EzvpnConfig
         var dto = new StartConfigDto
         {
             ServerNodeId = profile.ServerNodeId,
-            AuthToken = authToken,
+            AuthKey = authKey,
             RelayUrls = profile.RelayUrls,
             RelayAuthToken = relayToken,
             Routes = profile.Routes,
@@ -59,8 +61,8 @@ public static class EzvpnConfig
         [JsonPropertyName("server_node_id")]
         public string ServerNodeId { get; set; } = "";
 
-        [JsonPropertyName("auth_token")]
-        public string? AuthToken { get; set; }
+        [JsonPropertyName("auth_key")]
+        public string? AuthKey { get; set; }
 
         [JsonPropertyName("relay_urls")]
         public List<string> RelayUrls { get; set; } = new();

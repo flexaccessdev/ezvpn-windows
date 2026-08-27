@@ -198,11 +198,12 @@ public sealed partial class MainWindow : Window
             Title = "Add profile",
         };
         dialog.SetExistingNames(_manager.Tunnels.Select(t => t.Name));
+        dialog.SetKeys(_manager.AuthKeys.Keys);
 
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        if (await ShowEditDialogAsync(dialog) == ContentDialogResult.Primary)
         {
-            var (profile, token, relayToken) = dialog.BuildResult();
-            var vm = _manager.Add(profile, token, relayToken);
+            var (profile, relayToken) = dialog.BuildResult();
+            var vm = _manager.Add(profile, relayToken);
             TunnelList.SelectedItem = vm;
         }
     }
@@ -220,13 +221,49 @@ public sealed partial class MainWindow : Window
             Title = "Edit profile",
         };
         dialog.SetExistingNames(_manager.Tunnels.Where(t => t != vm).Select(t => t.Name));
-        dialog.LoadFrom(vm.Profile, _manager.LoadToken(vm), _manager.LoadRelayToken(vm));
+        dialog.SetKeys(_manager.AuthKeys.Keys);
+        dialog.LoadFrom(vm.Profile, _manager.LoadRelayToken(vm));
 
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        if (await ShowEditDialogAsync(dialog) == ContentDialogResult.Primary)
         {
-            var token = dialog.ApplyTo(vm.Profile);
-            _manager.Update(vm, token, dialog.RelayToken);
+            dialog.ApplyTo(vm.Profile);
+            _manager.Update(vm, dialog.RelayToken);
         }
+    }
+
+    /// <summary>
+    /// Show the profile editor, servicing its "Manage keys…" button. Only one
+    /// <see cref="ContentDialog"/> can be open at a time, so the editor hides
+    /// itself, the keys dialog runs, and then the *same* editor instance is shown
+    /// again — the half-filled form survives, with a refreshed key picker.
+    /// </summary>
+    private async Task<ContentDialogResult> ShowEditDialogAsync(TunnelEditDialog dialog)
+    {
+        while (true)
+        {
+            var result = await dialog.ShowAsync();
+            if (!dialog.ManageKeysRequested)
+            {
+                return result;
+            }
+            dialog.ClearManageKeysRequest();
+            await ShowKeysDialogAsync();
+            dialog.SetKeys(_manager.AuthKeys.Keys);
+        }
+    }
+
+    private async void KeysButton_Click(object sender, RoutedEventArgs e) =>
+        await ShowKeysDialogAsync();
+
+    /// <summary>
+    /// Run the auth-key manager, then re-read the key names the profile list and
+    /// detail panel show (a key may have been renamed or deleted).
+    /// </summary>
+    private async Task ShowKeysDialogAsync()
+    {
+        var keys = new AuthKeysDialog(_manager.AuthKeys) { XamlRoot = Content.XamlRoot };
+        await keys.ShowAsync();
+        _manager.RefreshKeyNames();
     }
 
     private async void DeleteButton_Click(object sender, RoutedEventArgs e)
@@ -240,7 +277,7 @@ public sealed partial class MainWindow : Window
         {
             XamlRoot = Content.XamlRoot,
             Title = "Delete profile",
-            Content = $"Delete \"{vm.Name}\"? This also removes its stored auth token.",
+            Content = $"Delete \"{vm.Name}\"? This also removes its stored copy of the auth key. The key itself stays in the key list.",
             PrimaryButtonText = "Delete",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
