@@ -6,6 +6,7 @@ The Rust core + C FFI live in the `../ezvpn` repo (`src/ffi_windows.rs`,
 
 ## Key facts
 
+- Strict no backward compatibility (0.0.x) or legacy code paths
 - The transport is iroh (Rust-only) — never reimplement the protocol in .NET.
   The app P/Invokes `ezvpn.dll` (`ezvpn_start` / `ezvpn_status` / `ezvpn_stop`).
 - Single elevated process: app manifest requests Administrator; the tunnel runs
