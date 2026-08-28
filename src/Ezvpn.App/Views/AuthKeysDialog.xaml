@@ -76,7 +76,7 @@
                                         <Flyout Opening="OnConfirmFlyoutOpening">
                                             <StackPanel Spacing="8" MaxWidth="300">
                                                 <TextBlock TextWrapping="Wrap"
-                                                           Text="The secret key is removed from this device's key list. The server keeps trusting its public key until that's taken off the authorized_keys file." />
+                                                           Text="The secret key is removed from this device's key list. Profiles using it keep connecting with their own copy — edit one to point it at another key. The server keeps trusting the public key until that's taken off the authorized_keys file." />
                                                 <Button Click="OnDeleteKey" Content="Delete key"
                                                         Style="{ThemeResource AccentButtonStyle}" />
                                             </StackPanel>

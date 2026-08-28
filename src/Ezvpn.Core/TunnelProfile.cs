@@ -29,9 +29,13 @@ public sealed class TunnelProfile
     /// never here — it is copied into the profile's own credential on save (see
     /// <c>SecretStore</c>); this is only the non-secret reference the editor
     /// re-selects and the UI names the key by.
+    ///
+    /// <c>required</c>, with no default: a profile without a key cannot be built
+    /// in code, and JSON that omits <c>authKeyId</c> fails to deserialize rather
+    /// than loading as a keyless profile.
     /// </summary>
     [JsonPropertyName("authKeyId")]
-    public string AuthKeyId { get; set; } = "";
+    public required string AuthKeyId { get; set; }
 
     /// <summary>Optional relay URL hints. When empty, iroh uses its default relay map.</summary>
     [JsonPropertyName("relayUrls")]

@@ -178,13 +178,13 @@ public sealed class TunnelsManager : ObservableObject
             "This profile has no auth key selected. Pick one in the profile editor.");
 
     /// <summary>
-    /// How the UI names a profile's key: its name, or a notice when the profile
-    /// has no key in the list — because it was deleted, or because the profile
-    /// predates key auth. Those are one state, not two: either way the profile
-    /// cannot be re-saved until a key is picked.
+    /// How the UI names a profile's key: its name, or a notice when the key the
+    /// profile names has been deleted from the list. The profile still connects
+    /// with its own copy of the secret, but cannot be re-saved until a key is
+    /// picked again.
     /// </summary>
     private string KeyNameFor(TunnelProfile profile) =>
-        AuthKeys.Find(profile.AuthKeyId)?.Name ?? "Not in the key list";
+        AuthKeys.Find(profile.AuthKeyId)?.Name ?? "Not in the key list — pick one in Edit";
 
     /// <summary>Persist (or clear) the optional relay token. A null/blank token
     /// deletes any stored item, so removing it in the editor removes the secret.</summary>

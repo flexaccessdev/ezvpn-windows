@@ -13,6 +13,7 @@ public class EzvpnConfigTests
         {
             Name = "work",
             ServerNodeId = "abc123",
+            AuthKeyId = "key-1",
             Routes = { "10.0.0.0/8" },
             Routes6 = { "fd00::/8" },
             RelayUrls = { "https://relay.example/" },
@@ -42,6 +43,7 @@ public class EzvpnConfigTests
         var profile = new TunnelProfile
         {
             ServerNodeId = "node",
+            AuthKeyId = "key-1",
             RelayUrls = { "https://relay.example/" },
         };
 
@@ -57,6 +59,7 @@ public class EzvpnConfigTests
         var profile = new TunnelProfile
         {
             ServerNodeId = "node",
+            AuthKeyId = "key-1",
             RelayUrls = { "https://relay.example/" },
         };
 
@@ -69,7 +72,7 @@ public class EzvpnConfigTests
     [Fact]
     public void Build_RelayAuthTokenWithoutRelays_Throws()
     {
-        var profile = new TunnelProfile { ServerNodeId = "node" };
+        var profile = new TunnelProfile { ServerNodeId = "node", AuthKeyId = "key-1" };
         Assert.Throws<ArgumentException>(() => EzvpnConfig.Build(profile, "ed25519-sec:key", "relay-secret"));
     }
 
@@ -79,6 +82,7 @@ public class EzvpnConfigTests
         var profile = new TunnelProfile
         {
             ServerNodeId = "node",
+            AuthKeyId = "key-1",
             MaxReconnectAttempts = 5,
         };
 
@@ -93,7 +97,7 @@ public class EzvpnConfigTests
     [Fact]
     public void Build_BlankOrNullAuthKey_Throws()
     {
-        var profile = new TunnelProfile { ServerNodeId = "node" };
+        var profile = new TunnelProfile { ServerNodeId = "node", AuthKeyId = "key-1" };
         Assert.Throws<ArgumentException>(() => EzvpnConfig.Build(profile, null));
         Assert.Throws<ArgumentException>(() => EzvpnConfig.Build(profile, ""));
         Assert.Throws<ArgumentException>(() => EzvpnConfig.Build(profile, "   "));
@@ -102,7 +106,7 @@ public class EzvpnConfigTests
     [Fact]
     public void Instance_IsStableAndAsciiSafe()
     {
-        var profile = new TunnelProfile();
+        var profile = new TunnelProfile { AuthKeyId = "key-1" };
         Assert.StartsWith("gui_", profile.Instance);
         Assert.All(profile.Instance, c => Assert.True(char.IsLetterOrDigit(c) || c == '_'));
         Assert.Equal(profile.Instance, profile.Instance); // stable

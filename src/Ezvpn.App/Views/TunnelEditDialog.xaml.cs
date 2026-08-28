@@ -47,6 +47,15 @@ public sealed partial class TunnelEditDialog : ContentDialog
     /// <summary>The id of the selected auth key, or null when none is selected.</summary>
     public string? SelectedKeyId => (KeyBox.SelectedItem as AuthKeyStore.Key)?.Id;
 
+    /// <summary>
+    /// The selected key's id, for the save path only. <see cref="Validate"/>
+    /// refuses to close the dialog without a selection, so this is where that
+    /// invariant is cashed in — a profile never exists without a key.
+    /// </summary>
+    private string RequiredKeyId =>
+        SelectedKeyId ?? throw new InvalidOperationException(
+            "The profile editor was saved with no auth key selected.");
+
     /// <summary>Prefill the form from an existing profile + its stored relay token.</summary>
     public void LoadFrom(TunnelProfile profile, string? relayToken)
     {
@@ -62,9 +71,9 @@ public sealed partial class TunnelEditDialog : ContentDialog
 
         var keys = (IReadOnlyList<AuthKeyStore.Key>?)KeyBox.ItemsSource ?? Array.Empty<AuthKeyStore.Key>();
         KeyBox.SelectedItem = keys.FirstOrDefault(k => k.Id == profile.AuthKeyId);
-        // Nothing to preselect: the key was deleted from the list, or the profile
-        // predates key auth. Say so rather than showing an empty picker with no
-        // explanation — a saved profile always names a key otherwise.
+        // Nothing to preselect: the key this profile names has been deleted from
+        // the list. Say so rather than showing an empty picker with no
+        // explanation — a saved profile always names a key.
         MissingKeyBar.IsOpen = KeyBox.SelectedItem is null;
         UpdatePublicKeyText();
     }
@@ -76,7 +85,7 @@ public sealed partial class TunnelEditDialog : ContentDialog
     /// <summary>Build a brand-new profile and its relay token from the form (for Add).</summary>
     public (TunnelProfile Profile, string? RelayToken) BuildResult()
     {
-        var profile = new TunnelProfile();
+        var profile = new TunnelProfile { AuthKeyId = RequiredKeyId };
         ApplyTo(profile);
         return (profile, RelayToken);
     }
@@ -91,7 +100,7 @@ public sealed partial class TunnelEditDialog : ContentDialog
     {
         profile.Name = NameBox.Text.Trim();
         profile.ServerNodeId = NodeIdBox.Text.Trim();
-        profile.AuthKeyId = SelectedKeyId ?? "";
+        profile.AuthKeyId = RequiredKeyId;
         profile.RelayUrls = TunnelValidation.SplitList(RelayBox.Text);
         profile.Routes = TunnelValidation.SplitList(RoutesBox.Text);
         profile.Routes6 = TunnelValidation.SplitList(Routes6Box.Text);
