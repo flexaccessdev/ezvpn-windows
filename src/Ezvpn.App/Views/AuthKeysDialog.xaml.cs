@@ -118,6 +118,17 @@ public sealed partial class AuthKeysDialog : ContentDialog
             return;
         }
 
+        // Merely leaving a name box is not a rename. Rebuilding anyway would
+        // tear down every row, including the copy/delete button the user is in
+        // the middle of clicking (the click moves focus here first), swallowing
+        // the action they asked for.
+        var current = _store.Find(id)?.Name;
+        if (current is not null && box.Text.Trim() == current)
+        {
+            box.Text = current;
+            return;
+        }
+
         var error = _store.Rename(id, box.Text);
         if (error is not null)
         {
@@ -125,7 +136,9 @@ public sealed partial class AuthKeysDialog : ContentDialog
             box.Text = _store.Find(id)?.Name ?? box.Text;
             return;
         }
-        Rebuild();
+        // A real rename does have to rebuild (the list is sorted by name), but
+        // only once the input event that moved focus has been delivered.
+        DispatcherQueue.TryEnqueue(Rebuild);
     }
 
     private void OnKeyNameKeyDown(object sender, KeyRoutedEventArgs args)

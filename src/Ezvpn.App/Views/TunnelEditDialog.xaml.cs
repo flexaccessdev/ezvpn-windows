@@ -32,8 +32,13 @@ public sealed partial class TunnelEditDialog : ContentDialog
     public void SetKeys(IReadOnlyList<AuthKeyStore.Key> keys)
     {
         var selectedId = SelectedKeyId;
-        KeyBox.ItemsSource = keys;
-        KeyBox.SelectedItem = keys.FirstOrDefault(k => k.Id == selectedId);
+        // Snapshot, never the caller's list: the store hands out its own live
+        // list, which raises no collection-change notifications, so re-assigning
+        // that same instance would leave the picker showing the items it was
+        // built from — a key just added in the key manager would never appear.
+        var snapshot = keys.ToArray();
+        KeyBox.ItemsSource = snapshot;
+        KeyBox.SelectedItem = snapshot.FirstOrDefault(k => k.Id == selectedId);
         // A key that was selected and is now gone (deleted from the key manager
         // this dialog just came back from) empties the picker, so explain it the
         // same way LoadFrom does rather than leaving it blank.
