@@ -20,6 +20,7 @@ public sealed class TunnelViewModel : ObservableObject
     private ConnectionState _state = ConnectionState.Disconnected;
     private ClientStatus? _status;
     private string? _error;
+    private string _authKeyName = "Not in the key list — pick one in Edit";
 
     public TunnelViewModel(TunnelProfile profile)
     {
@@ -33,6 +34,17 @@ public sealed class TunnelViewModel : ObservableObject
     public string Name => Profile.Name;
 
     public string ServerNodeId => Profile.ServerNodeId;
+
+    /// <summary>
+    /// The display name of the auth key this profile connects with, kept in sync
+    /// by <see cref="TunnelsManager"/> (the profile itself only stores the key
+    /// id, and the key may since have been renamed or removed from the list).
+    /// </summary>
+    public string AuthKeyName
+    {
+        get => _authKeyName;
+        set => SetProperty(ref _authKeyName, value);
+    }
 
     public ConnectionState State
     {

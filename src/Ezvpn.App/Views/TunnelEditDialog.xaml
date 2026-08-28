@@ -22,7 +22,27 @@
             <TextBox x:Name="NodeIdBox" Header="Server node id"
                      PlaceholderText="iroh endpoint id" TextWrapping="Wrap" AcceptsReturn="False" />
 
-            <PasswordBox x:Name="TokenBox" Header="Auth token (required)" />
+            <Grid ColumnSpacing="8" VerticalAlignment="Bottom">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ComboBox x:Name="KeyBox" Grid.Column="0" Header="Auth key (required)"
+                          HorizontalAlignment="Stretch" DisplayMemberPath="Name"
+                          PlaceholderText="Choose a key…"
+                          SelectionChanged="OnKeySelectionChanged" />
+                <Button x:Name="ManageKeysButton" Grid.Column="1" Content="Manage keys…"
+                        VerticalAlignment="Bottom" Click="OnManageKeys" />
+            </Grid>
+
+            <TextBlock x:Name="PublicKeyText" TextWrapping="Wrap" FontFamily="Consolas"
+                       Visibility="Collapsed" IsTextSelectionEnabled="True"
+                       Style="{ThemeResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+            <InfoBar x:Name="MissingKeyBar" IsOpen="False" Severity="Warning" IsClosable="False"
+                     Title="Auth key missing"
+                     Message="This profile doesn't name a key in the key list. Pick one before saving." />
 
             <TextBox x:Name="RelayBox" Header="Relay URLs (optional, comma-separated)"
                      PlaceholderText="https://relay.example.com"

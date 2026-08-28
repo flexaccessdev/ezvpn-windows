@@ -57,6 +57,9 @@
                 <Button x:Name="DeleteButton" Click="DeleteButton_Click" ToolTipService.ToolTip="Delete profile">
                     <FontIcon Glyph="&#xE74D;" FontFamily="Segoe MDL2 Assets" />
                 </Button>
+                <Button x:Name="KeysButton" Click="KeysButton_Click" ToolTipService.ToolTip="Auth keys">
+                    <FontIcon Glyph="&#xE192;" FontFamily="Segoe MDL2 Assets" />
+                </Button>
             </StackPanel>
         </Grid>
 
@@ -102,31 +105,35 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Server node id" Style="{ThemeResource BodyStrongTextBlockStyle}" />
                     <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ServerNodeId}" IsTextSelectionEnabled="True" TextWrapping="Wrap" />
 
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Mode" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Mode}" />
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Auth key" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding AuthKeyName}" TextWrapping="Wrap" />
 
-                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Assigned IP" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding AssignedIp}" IsTextSelectionEnabled="True" />
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Mode" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Mode}" />
 
-                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Gateway" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Gateway}" IsTextSelectionEnabled="True" />
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Assigned IP" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding AssignedIp}" IsTextSelectionEnabled="True" />
 
-                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Routes" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                    <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding RoutesText}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Gateway" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Gateway}" IsTextSelectionEnabled="True" />
 
-                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Connection" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                    <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding ConnectionPath}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Routes" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding RoutesText}" TextWrapping="Wrap" />
 
-                    <TextBlock Grid.Row="6" Grid.Column="0" Text="Custom relays" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                    <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding CustomRelaysText}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                    <TextBlock Grid.Row="6" Grid.Column="0" Text="Connection" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding ConnectionPath}" TextWrapping="Wrap" />
 
-                    <TextBlock Grid.Row="7" Grid.Column="0" Text="Bypass" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                    <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding BypassText}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="7" Grid.Column="0" Text="Custom relays" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding CustomRelaysText}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+
+                    <TextBlock Grid.Row="8" Grid.Column="0" Text="Bypass" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding BypassText}" TextWrapping="Wrap" />
                 </Grid>
             </StackPanel>
         </ScrollViewer>

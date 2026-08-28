@@ -6,8 +6,9 @@ namespace Ezvpn.App.Services;
 /// <summary>
 /// Persists <see cref="TunnelProfile"/> records as JSON files under
 /// <c>%ProgramData%\ezvpn\profiles\</c> (the elevated app can write there; it
-/// matches the CLI's config dir). One file per profile, named by id. The auth
-/// token is NOT stored here — see <see cref="TokenStore"/>.
+/// matches the CLI's config dir). One file per profile, named by id. No secret is
+/// stored here — the profile's auth key and relay token live in Credential
+/// Manager, see <see cref="SecretStore"/>.
 /// </summary>
 public sealed class ProfileStore
 {

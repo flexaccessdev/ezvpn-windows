@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace Ezvpn.Core.Interop;
 
 /// <summary>Thrown when <c>ezvpn_start</c> fails during setup.</summary>
@@ -76,7 +74,7 @@ public sealed class EzvpnSession : IDisposable
         var ptr = EzvpnNative.Start(configJson, err, (nuint)err.Length);
         if (ptr == IntPtr.Zero)
         {
-            var msg = ReadCString(err);
+            var msg = EzvpnNative.ReadCString(err);
             throw new EzvpnException(msg.Length > 0 ? msg : "ezvpn_start failed");
         }
         return new EzvpnSession(EzvpnSafeHandle.FromPtr(ptr));
@@ -124,7 +122,7 @@ public sealed class EzvpnSession : IDisposable
                     size = Math.Min(size * 2, MaxStatusBytes);
                     continue;
                 }
-                return ReadCString(buf);
+                return EzvpnNative.ReadCString(buf);
             }
         }
         catch (ObjectDisposedException)
@@ -144,15 +142,4 @@ public sealed class EzvpnSession : IDisposable
     public ClientStatus? TryGetStatus() => ClientStatus.Parse(TryGetStatusJson());
 
     public void Dispose() => _handle.Dispose();
-
-    /// <summary>Decode a NUL-terminated UTF-8 buffer into a string.</summary>
-    private static string ReadCString(byte[] buf)
-    {
-        var len = Array.IndexOf(buf, (byte)0);
-        if (len < 0)
-        {
-            len = buf.Length;
-        }
-        return Encoding.UTF8.GetString(buf, 0, len);
-    }
 }
