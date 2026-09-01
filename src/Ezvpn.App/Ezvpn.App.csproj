@@ -7,9 +7,9 @@
     <RootNamespace>Ezvpn.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- App version shown in the UI (main window + tray menu) and stamped into the
-         assembly. Sourced from EzvpnVersion (Directory.Build.props) so it always
+         assembly. Sourced from EzvpnAppVersion (Directory.Build.props) so it always
          matches the MSI's Add/Remove Programs DisplayVersion. -->
-    <Version Condition="'$(Version)' == ''">$(EzvpnVersion)</Version>
+    <Version Condition="'$(Version)' == ''">$(EzvpnAppVersion)</Version>
     <Platforms>x64;arm64</Platforms>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
     <!-- WinUI needs a RID to build. Default to win-x64 so `dotnet build` (and a
@@ -57,6 +57,13 @@
        they are not needed to compile. native.targets downloads/stages them
        (verified by SHA256) and copies them into the build / publish output. -->
   <Import Project="..\..\native\native.targets" />
+
+  <!-- The pinned ezvpn.dll release (native.targets EzvpnCoreVersion), stamped as
+       assembly metadata so AppInfo can show which core this build ships alongside
+       the app's own version. -->
+  <ItemGroup>
+    <AssemblyMetadata Include="EzvpnCoreVersion" Value="$(EzvpnCoreVersion)" />
+  </ItemGroup>
 
   <!-- `dotnet publish` for an unpackaged (WindowsPackageType=None) WinUI 3 app
        drops the app resource index (Ezvpn.App.pri) — it stays in the build output

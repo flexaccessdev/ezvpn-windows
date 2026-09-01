@@ -21,7 +21,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
 
         Title = "ezvpn";
-        VersionText.Text = AppInfo.Version;
+        VersionText.Text = AppInfo.Summary;
         _manager = new TunnelsManager(DispatcherQueue);
         RootGrid.DataContext = _manager;
 

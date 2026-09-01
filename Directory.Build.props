@@ -1,16 +1,17 @@
 <Project>
 
-  <!-- Human-facing app version, kept equal to the pinned ezvpn.dll release
-       (native/native.targets EzvpnReleaseTag, minus the leading "v"). It is stamped
-       into the Ezvpn.App assembly (shown in the main window + tray menu, see AppInfo)
-       and used as the MSI's Add/Remove Programs "DisplayVersion" (ARPDISPLAYVERSION),
-       so the app, Programs & Features, and the bundled DLL all report the same
-       version. scripts\bump-dll.ps1 rewrites this in lockstep with the DLL pin;
-       overridable from CI. NOTE: this is NOT the MSI ProductVersion — that stays a
-       monotonically increasing build-timestamp value so MajorUpgrade keeps working
-       (see installer/Ezvpn.Installer.wixproj and .github/workflows/release.yml). -->
+  <!-- Human-facing app version. Independent of the pinned ezvpn.dll release
+       (native/native.targets EzvpnReleaseTag, surfaced separately as
+       EzvpnCoreVersion): re-pinning the DLL with scripts\bump-dll.ps1 does not
+       touch this, and bumping this does not change which DLL ships. Bump it by
+       hand when the app itself changes. It is stamped into the Ezvpn.App assembly
+       (shown in the main window + tray menu, see AppInfo) and used as the MSI's
+       Add/Remove Programs "DisplayVersion" (ARPDISPLAYVERSION); overridable from
+       CI. NOTE: this is NOT the MSI ProductVersion — that stays a monotonically
+       increasing build-timestamp value so MajorUpgrade keeps working (see
+       installer/Ezvpn.Installer.wixproj and .github/workflows/release.yml). -->
   <PropertyGroup>
-    <EzvpnVersion Condition="'$(EzvpnVersion)' == ''">0.0.44</EzvpnVersion>
+    <EzvpnAppVersion Condition="'$(EzvpnAppVersion)' == ''">0.0.44</EzvpnAppVersion>
   </PropertyGroup>
 
 </Project>

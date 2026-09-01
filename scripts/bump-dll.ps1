@@ -6,9 +6,10 @@
   The Windows analog of ezvpn-apple's scripts/bump-xcframework.sh. Downloads the
   release's ezvpn-windows.dll.zip, computes its SHA256, and rewrites the
   EzvpnReleaseTag + EzvpnDllZipSha256 in native\native.targets so the app build
-  downloads that exact DLL by default (no local core build needed). It also updates
-  EzvpnVersion in Directory.Build.props to the same tag (minus the leading "v") so
-  the version shown in the app UI and in Add/Remove Programs tracks the bundled DLL.
+  downloads that exact DLL by default (no local core build needed). The app's own
+  version (EzvpnAppVersion in Directory.Build.props) is independent of the DLL pin
+  and is not touched; the UI shows the pinned core version next to it via the
+  EzvpnCoreVersion property native.targets derives from the tag.
   wintun.dll is pinned separately in native.targets and is not touched here.
 
 .PARAMETER Tag
@@ -30,10 +31,7 @@ $Asset = 'ezvpn-windows.dll.zip'
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Targets = Join-Path $ScriptDir '..\native\native.targets'
 
-$BuildProps = Join-Path $ScriptDir '..\Directory.Build.props'
-
 if (-not (Test-Path $Targets)) { throw "native.targets not found at $Targets" }
-if (-not (Test-Path $BuildProps)) { throw "Directory.Build.props not found at $BuildProps" }
 
 if (-not $Tag) {
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
@@ -68,19 +66,7 @@ if ($content -notmatch [regex]::Escape("<EzvpnDllZipSha256>$Sha</EzvpnDllZipSha2
 
 Set-Content -Path $Targets -Value $content -NoNewline
 
-# Keep the human-facing app/MSI version (Directory.Build.props EzvpnVersion) in sync
-# with the pinned DLL: same tag, minus a leading "v" (0.1.0 rather than v0.1.0).
-$Version = $Tag -replace '^[vV]', ''
-$props = Get-Content $BuildProps -Raw
-$props = $props -replace '(?s)(<EzvpnVersion\b[^>]*>).*?(</EzvpnVersion>)', "`${1}$Version`${2}"
-if ($props -notmatch [regex]::Escape(">$Version</EzvpnVersion>")) {
-    throw "failed to rewrite EzvpnVersion in $BuildProps"
-}
-Set-Content -Path $BuildProps -Value $props -NoNewline
-
 Write-Host "Pinned native.targets:"
 Write-Host "  tag:      $Tag"
 Write-Host "  checksum: $Sha"
 Write-Host "  url:      $Url"
-Write-Host "Synced Directory.Build.props:"
-Write-Host "  version:  $Version"

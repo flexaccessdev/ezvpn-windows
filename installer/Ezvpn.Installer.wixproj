@@ -16,9 +16,9 @@
          user sees. -->
     <ProductVersion Condition="'$(ProductVersion)' == ''">0.1.0.0</ProductVersion>
     <!-- DisplayVersion is the human-facing version shown in Add/Remove Programs
-         (via ARPDISPLAYVERSION). Sourced from EzvpnVersion (Directory.Build.props)
-         so it matches the version shown inside the app. -->
-    <DisplayVersion Condition="'$(DisplayVersion)' == ''">$(EzvpnVersion)</DisplayVersion>
+         (via ARPDISPLAYVERSION). Sourced from EzvpnAppVersion (Directory.Build.props)
+         so it matches the app version shown inside the app. -->
+    <DisplayVersion Condition="'$(DisplayVersion)' == ''">$(EzvpnAppVersion)</DisplayVersion>
     <!-- Directory holding the published, self-contained Ezvpn.App plus the
          native DLLs (ezvpn.dll, wintun.dll). CI publishes there before building;
          locally it defaults to ../publish. -->

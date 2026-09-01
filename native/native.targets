@@ -27,9 +27,13 @@
 
     <!-- Pinned ezvpn.dll release. Fill EzvpnDllZipSha256 with scripts\bump-dll.ps1
          once an ezvpn release that includes the build-windows-lib asset exists.
-         scripts\bump-dll.ps1 also mirrors this tag (minus "v") into EzvpnVersion in
-         Directory.Build.props, which is the version the app UI + MSI report. -->
+         The tag (minus "v") is also surfaced as EzvpnCoreVersion, which Ezvpn.App
+         stamps into its assembly metadata so the UI can name the core it ships
+         next to the app's own version (EzvpnAppVersion in Directory.Build.props,
+         which is independent of this pin). A local core build (EZVPN_LOCAL_DLL)
+         still reports the pinned number: the local DLL carries none. -->
     <EzvpnReleaseTag Condition="'$(EzvpnReleaseTag)' == ''">v0.0.44</EzvpnReleaseTag>
+    <EzvpnCoreVersion>$(EzvpnReleaseTag.TrimStart('v'))</EzvpnCoreVersion>
     <EzvpnDllZipUrl>https://github.com/flexaccessdev/ezvpn/releases/download/$(EzvpnReleaseTag)/ezvpn-windows.dll.zip</EzvpnDllZipUrl>
     <EzvpnDllZipSha256>8266f394ec55b0bffcd6ed283f2778fdd43c7c130fd1f92a8a6903fde406111e</EzvpnDllZipSha256>
 
