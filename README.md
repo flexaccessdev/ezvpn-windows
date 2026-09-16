@@ -174,7 +174,10 @@ involved.
    to authenticate with (required), and optional split-tunnel routes
    (`10.0.0.0/8`, `fd00::/8`, …).
 4. Select it and **Connect**. The status panel shows the assigned IP, gateway,
-   routes, and the live iroh connection path once connected.
+   routes, and the live iroh connection path once connected. A server that is
+   down, or a connection that drops, is retried by the core with backoff (1s
+   doubling to 60s) for as long as it takes; while that runs the panel says
+   how many attempts have failed, when the next one is due, and the last error.
 5. **Disconnect** tears down the tunnel and routes.
 
 Keys are shared across profiles: several profiles can authenticate with the same
