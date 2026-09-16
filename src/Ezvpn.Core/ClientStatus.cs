@@ -51,6 +51,21 @@ public sealed class ClientStatus
 
     public IReadOnlyList<string> BypassAddrs => StrList("bypass_addrs");
 
+    /// <summary>
+    /// Consecutive failed connection attempts in the current outage; 0 while
+    /// connected or before the first failure.
+    /// </summary>
+    public int FailedAttempts => Int("failed_attempts") ?? 0;
+
+    /// <summary>
+    /// Seconds until the core's reconnect loop tries again: 0 while an attempt
+    /// is in progress, null when no retry is pending.
+    /// </summary>
+    public ulong? NextAttemptSecs => ULong("next_attempt_secs");
+
+    /// <summary>The error that ended the last failed attempt, while reconnecting.</summary>
+    public string? LastError => Str("last_error");
+
     public IReadOnlyList<CustomRelayStatus> CustomRelays
     {
         get

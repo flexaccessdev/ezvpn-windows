@@ -98,6 +98,9 @@ public sealed class TunnelViewModel : ObservableObject
 
     public string StateText => State switch
     {
+        // The core retries every failed attempt itself; say so once one has
+        // failed, so a backoff wait reads as waiting rather than stuck.
+        ConnectionState.Connecting when IsReconnecting => "Reconnecting…",
         ConnectionState.Connecting => "Connecting…",
         ConnectionState.Connected => "Connected",
         ConnectionState.Error => "Error",
@@ -128,6 +131,39 @@ public sealed class TunnelViewModel : ObservableObject
 
     public bool HasError => State == ConnectionState.Error && !string.IsNullOrEmpty(Error);
 
+    /// <summary>
+    /// True while the core's reconnect loop is between attempts after at least
+    /// one failure (the status reports <c>failed_attempts</c> &gt; 0).
+    /// </summary>
+    public bool IsReconnecting => State == ConnectionState.Connecting && _status?.FailedAttempts > 0;
+
+    /// <summary>
+    /// How far the retry loop has got, e.g. "3 failed attempts, next in 8s"
+    /// (the same line <c>ezvpn client status</c> prints), or "trying now" while
+    /// an attempt is in progress.
+    /// </summary>
+    public string ReconnectText
+    {
+        get
+        {
+            if (_status is null || _status.FailedAttempts == 0)
+            {
+                return "";
+            }
+            var n = _status.FailedAttempts;
+            var attempts = n == 1 ? "1 failed attempt" : $"{n} failed attempts";
+            var next = _status.NextAttemptSecs switch
+            {
+                > 0 and var secs => $"next in {FormatWait(TimeSpan.FromSeconds(secs))}",
+                _ => "trying now",
+            };
+            return $"{attempts}, {next}";
+        }
+    }
+
+    /// <summary>The last attempt's error while reconnecting, or "" when unknown.</summary>
+    public string ReconnectErrorText => IsReconnecting ? _status?.LastError ?? "" : "";
+
     public string ConnectedSinceText =>
         _status?.ConnectedSinceSecs is { } secs
             ? FormatElapsed(TimeSpan.FromSeconds(secs))
@@ -137,6 +173,11 @@ public sealed class TunnelViewModel : ObservableObject
     // not wrap the hours component back to 0 (TimeSpan's "hh" is 0–23).
     private static string FormatElapsed(TimeSpan t) =>
         $"{(int)t.TotalHours:00}:{t.Minutes:00}:{t.Seconds:00}";
+
+    // A backoff wait is at most a minute or so ("8s", "1m 0s"), so a compact
+    // form reads better than the clock-style elapsed time above.
+    private static string FormatWait(TimeSpan t) =>
+        t.TotalMinutes >= 1 ? $"{(int)t.TotalMinutes}m {t.Seconds}s" : $"{t.Seconds}s";
 
     // --- State transitions ----------------------------------------------------
 

@@ -36,6 +36,35 @@ public class ClientStatusTests
         Assert.Single(status.CustomRelays);
         Assert.True(status.CustomRelays[0].Working);
         Assert.Equal("https://relay.example/", status.CustomRelays[0].Url);
+        Assert.Equal(0, status.FailedAttempts);
+        Assert.Null(status.NextAttemptSecs);
+        Assert.Null(status.LastError);
+    }
+
+    // The reconnect loop's progress while down: consecutive failures, when it
+    // tries again (0 while an attempt is in progress), and the last error.
+    [Fact]
+    public void Parse_ReconnectingReportsProgress()
+    {
+        const string json = """
+        {"role":"client","instance":"work","state":"disconnected","mode":"none",
+         "server_node_id":"node","device_id":"x",
+         "failed_attempts":3,"next_attempt_secs":8,
+         "last_error":"Signaling error: Failed to connect to server"}
+        """;
+        var status = ClientStatus.Parse(json);
+        Assert.NotNull(status);
+        Assert.False(status!.IsConnected);
+        Assert.Equal(3, status.FailedAttempts);
+        Assert.Equal(8ul, status.NextAttemptSecs);
+        Assert.Equal("Signaling error: Failed to connect to server", status.LastError);
+
+        const string trying = """
+        {"state":"disconnected","failed_attempts":1,"next_attempt_secs":0,"last_error":"Connection lost"}
+        """;
+        var mid = ClientStatus.Parse(trying);
+        Assert.Equal(1, mid!.FailedAttempts);
+        Assert.Equal(0ul, mid.NextAttemptSecs);
     }
 
     [Fact]
@@ -50,6 +79,9 @@ public class ClientStatusTests
         Assert.False(status!.IsConnected);
         Assert.Null(status.AssignedIp);
         Assert.Empty(status.Routes);
+        Assert.Equal(0, status.FailedAttempts);
+        Assert.Null(status.NextAttemptSecs);
+        Assert.Null(status.LastError);
     }
 
     [Theory]

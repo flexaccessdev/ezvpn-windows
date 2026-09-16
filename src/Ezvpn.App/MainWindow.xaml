@@ -79,6 +79,12 @@
                          Title="Connection error" Message="{Binding ErrorText}"
                          IsClosable="False" />
 
+                <!-- While the core's reconnect loop is between attempts: how far it
+                     has got and when it tries again, plus the last attempt's error. -->
+                <InfoBar IsOpen="{Binding IsReconnecting}" Severity="Warning"
+                         Title="{Binding ReconnectText}" Message="{Binding ReconnectErrorText}"
+                         IsClosable="False" />
+
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button x:Name="ConnectButton" Content="Connect"
                             Style="{ThemeResource AccentButtonStyle}"
