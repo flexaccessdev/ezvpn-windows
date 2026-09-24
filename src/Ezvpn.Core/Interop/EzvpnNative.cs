@@ -48,6 +48,15 @@ internal static partial class EzvpnNative
     [LibraryImport(Dll, EntryPoint = "ezvpn_status")]
     internal static partial int Status(IntPtr handle, byte[] outBuf, nuint outLen);
 
+    /// <summary>
+    /// Write the connection-path JSON (every path plus custom-relay health) into
+    /// <paramref name="outBuf"/>. Makes a <c>/healthz</c> request per custom
+    /// relay, so call it on demand, not on the poll timer. Returns 1 (full), 0
+    /// (buffer too small; retry larger), or -1 (null handle).
+    /// </summary>
+    [LibraryImport(Dll, EntryPoint = "ezvpn_conn_path")]
+    internal static partial int ConnPath(IntPtr handle, byte[] outBuf, nuint outLen);
+
     [LibraryImport(Dll, EntryPoint = "ezvpn_stop")]
     internal static partial void Stop(IntPtr handle);
 

@@ -12,7 +12,7 @@
        increasing build-timestamp value so MajorUpgrade keeps working (see
        installer/Ezvpn.Installer.wixproj and .github/workflows/release.yml). -->
   <PropertyGroup>
-    <EzvpnAppVersion Condition="'$(EzvpnAppVersion)' == ''">0.0.3</EzvpnAppVersion>
+    <EzvpnAppVersion Condition="'$(EzvpnAppVersion)' == ''">0.0.4</EzvpnAppVersion>
   </PropertyGroup>
 
 </Project>

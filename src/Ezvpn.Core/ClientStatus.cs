@@ -15,6 +15,10 @@ namespace Ezvpn.Core;
 ///     null/empty — nothing dead is left mirroring it, and parsing never breaks.
 /// (Mirrors how <c>ezvpn-apple</c>'s <c>TunnelSnapshotDecoder</c> reads only the
 /// keys it needs.) To surface a new field, add an accessor for its key here.
+///
+/// The connection path and custom-relay health are not part of the polled
+/// status; they come on demand from <c>ezvpn_conn_path</c>
+/// (<see cref="ConnPathSnapshot"/>).
 /// </summary>
 public sealed class ClientStatus
 {
@@ -46,9 +50,6 @@ public sealed class ClientStatus
 
     public IReadOnlyList<string> Routes6 => StrList("routes6");
 
-    /// <summary>Live iroh path description (direct/relay, rtt), when connected.</summary>
-    public string? Connection => Str("connection");
-
     public IReadOnlyList<string> BypassAddrs => StrList("bypass_addrs");
 
     /// <summary>
@@ -65,25 +66,6 @@ public sealed class ClientStatus
 
     /// <summary>The error that ended the last failed attempt, while reconnecting.</summary>
     public string? LastError => Str("last_error");
-
-    public IReadOnlyList<CustomRelayStatus> CustomRelays
-    {
-        get
-        {
-            var relays = new List<CustomRelayStatus>();
-            if (_root.TryGetProperty("custom_relays", out var arr) && arr.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var e in arr.EnumerateArray())
-                {
-                    if (e.ValueKind == JsonValueKind.Object)
-                    {
-                        relays.Add(new CustomRelayStatus(e));
-                    }
-                }
-            }
-            return relays;
-        }
-    }
 
     public bool IsConnected => string.Equals(State, "connected", StringComparison.Ordinal);
 
@@ -145,33 +127,4 @@ public sealed class ClientStatus
         }
         return list;
     }
-}
-
-/// <summary>A configured custom relay URL and its latest endpoint health.</summary>
-public sealed class CustomRelayStatus
-{
-    internal CustomRelayStatus(JsonElement e)
-    {
-        Url = e.TryGetProperty("url", out var u) && u.ValueKind == JsonValueKind.String
-            ? u.GetString() ?? ""
-            : "";
-        Working = e.TryGetProperty("working", out var w)
-            ? w.ValueKind switch
-            {
-                JsonValueKind.True => true,
-                JsonValueKind.False => false,
-                _ => (bool?)null,
-            }
-            : null;
-        Error = e.TryGetProperty("error", out var err) && err.ValueKind == JsonValueKind.String
-            ? err.GetString()
-            : null;
-    }
-
-    public string Url { get; }
-
-    /// <summary>True/false when iroh has observed health; null while unavailable.</summary>
-    public bool? Working { get; }
-
-    public string? Error { get; }
 }

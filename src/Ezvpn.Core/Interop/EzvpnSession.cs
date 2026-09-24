@@ -84,7 +84,23 @@ public sealed class EzvpnSession : IDisposable
     /// Snapshot the live status JSON, or null if unavailable (disposed / null
     /// handle). Grows the buffer automatically if the snapshot is large.
     /// </summary>
-    public string? TryGetStatusJson()
+    public string? TryGetStatusJson() => TryCallJson(EzvpnNative.Status);
+
+    /// <summary>
+    /// Snapshot the connection-path JSON (<c>ezvpn_conn_path</c>), or null if
+    /// unavailable. Blocks on the custom relays' health requests, so call it off
+    /// the UI thread and only on demand.
+    /// </summary>
+    public string? TryGetConnPathJson() => TryCallJson(EzvpnNative.ConnPath);
+
+    /// <summary>Snapshot the parsed connection paths, or null if unavailable.</summary>
+    public ConnPathSnapshot? TryGetConnPath() => ConnPathSnapshot.Parse(TryGetConnPathJson());
+
+    /// <summary>
+    /// Run one of the handle's JSON-snapshot calls (<c>1</c> full, <c>0</c>
+    /// truncated, <c>-1</c> null handle), growing the buffer until it fits.
+    /// </summary>
+    private string? TryCallJson(Func<IntPtr, byte[], nuint, int> call)
     {
         if (_handle.IsInvalid || _handle.IsClosed)
         {
@@ -104,7 +120,7 @@ public sealed class EzvpnSession : IDisposable
             while (true)
             {
                 var buf = new byte[size];
-                var rc = EzvpnNative.Status(ptr, buf, (nuint)buf.Length);
+                var rc = call(ptr, buf, (nuint)buf.Length);
                 if (rc < 0)
                 {
                     return null;

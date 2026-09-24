@@ -117,12 +117,6 @@ public sealed class TunnelViewModel : ObservableObject
 
     public string RoutesText => JoinList(_status?.Routes, _status?.Routes6);
 
-    public string ConnectionPath => _status?.Connection ?? "—";
-
-    public string CustomRelaysText => (_status?.CustomRelays is { Count: > 0 } relays)
-        ? string.Join(", ", relays.Select(FormatRelay))
-        : "—";
-
     public string BypassText => (_status?.BypassAddrs is { Count: > 0 } b)
         ? string.Join(", ", b)
         : "—";
@@ -228,18 +222,5 @@ public sealed class TunnelViewModel : ObservableObject
         if (a is not null) all.AddRange(a);
         if (b is not null) all.AddRange(b);
         return all.Count == 0 ? "—" : string.Join(", ", all);
-    }
-
-    private static string FormatRelay(CustomRelayStatus relay)
-    {
-        var state = relay.Working switch
-        {
-            true => "working",
-            false => "not working",
-            null => "status unavailable",
-        };
-        return string.IsNullOrEmpty(relay.Error)
-            ? $"{relay.Url} ({state})"
-            : $"{relay.Url} ({state}: {relay.Error})";
     }
 }
