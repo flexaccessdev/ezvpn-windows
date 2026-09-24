@@ -32,10 +32,10 @@
          next to the app's own version (EzvpnAppVersion in Directory.Build.props,
          which is independent of this pin). A local core build (EZVPN_LOCAL_DLL)
          still reports the pinned number: the local DLL carries none. -->
-    <EzvpnReleaseTag Condition="'$(EzvpnReleaseTag)' == ''">v0.0.52</EzvpnReleaseTag>
+    <EzvpnReleaseTag Condition="'$(EzvpnReleaseTag)' == ''">v0.0.53</EzvpnReleaseTag>
     <EzvpnCoreVersion>$(EzvpnReleaseTag.TrimStart('v'))</EzvpnCoreVersion>
     <EzvpnDllZipUrl>https://github.com/flexaccessdev/ezvpn/releases/download/$(EzvpnReleaseTag)/ezvpn-windows.dll.zip</EzvpnDllZipUrl>
-    <EzvpnDllZipSha256>7c14ceb71f343b3ce09d9f06ae88eb5269514d74b351a74eb1cc22c2d2f1a8f7</EzvpnDllZipSha256>
+    <EzvpnDllZipSha256>cccb11af502a578541cd17fa2171eeea1985902bf72b1dcc5cc274a0cfc9dc42</EzvpnDllZipSha256>
 
     <!-- Local core build used when EZVPN_LOCAL_DLL=1 (see ..\ezvpn\build-windows.ps1).
          In that mode ezvpn.dll is consumed straight from the sibling dist — it is
