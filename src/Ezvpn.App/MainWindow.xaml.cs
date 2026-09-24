@@ -297,6 +297,19 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async void ConnPathButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Selected is not { } vm)
+        {
+            return;
+        }
+        var dialog = new ConnPathDialog(() => _manager.QueryConnPathAsync(vm))
+        {
+            XamlRoot = Content.XamlRoot,
+        };
+        await dialog.ShowAsync();
+    }
+
     private void DisconnectButton_Click(object sender, RoutedEventArgs e)
     {
         if (Selected is { } vm)

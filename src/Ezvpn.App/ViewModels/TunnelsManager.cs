@@ -341,6 +341,21 @@ public sealed class TunnelsManager : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Snapshot how <paramref name="vm"/>'s running tunnel reaches the server,
+    /// for the "Connection path…" dialog; null when it is not the active tunnel
+    /// or the snapshot is unavailable. Runs off the UI thread: the call waits on
+    /// the custom relays' health requests.
+    /// </summary>
+    public async Task<ConnPathSnapshot?> QueryConnPathAsync(TunnelViewModel vm)
+    {
+        if (_session is not { } session || !ReferenceEquals(_active, vm))
+        {
+            return null;
+        }
+        return await Task.Run(session.TryGetConnPath).ConfigureAwait(true);
+    }
+
     private void Poll()
     {
         if (_session is null || _active is null)

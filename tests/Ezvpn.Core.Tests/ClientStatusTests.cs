@@ -17,8 +17,7 @@ public class ClientStatusTests
           "assigned_ip6":"fd00::2","network6":"fd00::1/128","gateway6":"fd00::1",
           "mtu":1280,
           "routes":["10.0.0.1/32"],"routes6":["fd00::1/128"],
-          "connection":"Direct 1.2.3.4:52186 (rtt 1ms)",
-          "custom_relays":[{"url":"https://relay.example/","working":true,"error":null}],
+          "connection":null,"custom_relays":[],
           "bypass_addrs":[]
         }
         """;
@@ -32,10 +31,6 @@ public class ClientStatusTests
         Assert.Equal(1280, status.Mtu);
         Assert.Equal(42ul, status.ConnectedSinceSecs);
         Assert.Contains("10.0.0.1/32", status.Routes);
-        Assert.Equal("Direct 1.2.3.4:52186 (rtt 1ms)", status.Connection);
-        Assert.Single(status.CustomRelays);
-        Assert.True(status.CustomRelays[0].Working);
-        Assert.Equal("https://relay.example/", status.CustomRelays[0].Url);
         Assert.Equal(0, status.FailedAttempts);
         Assert.Null(status.NextAttemptSecs);
         Assert.Null(status.LastError);
@@ -120,7 +115,7 @@ public class ClientStatusTests
     {
         const string json = """
         {"state":"connected","mtu":"not-a-number","connected_since_secs":null,
-         "assigned_ip":123,"routes":"not-an-array","custom_relays":"nope"}
+         "assigned_ip":123,"routes":"not-an-array"}
         """;
         var status = ClientStatus.Parse(json);
         Assert.NotNull(status);
@@ -128,6 +123,5 @@ public class ClientStatusTests
         Assert.Null(status.ConnectedSinceSecs);
         Assert.Null(status.AssignedIp);
         Assert.Empty(status.Routes);
-        Assert.Empty(status.CustomRelays);
     }
 }
