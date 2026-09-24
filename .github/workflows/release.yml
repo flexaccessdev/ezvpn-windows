@@ -1,9 +1,10 @@
 name: release
 
 on:
-  # Self-tagged prerelease builds: each run mints its own timestamp+hash tag and
-  # derives the MSI ProductVersion from the same UTC build time (see "Determine
-  # version"), so there is no v* tag trigger and nothing to customize.
+  # Like the sibling repos: the tag comes from the declared app version
+  # (EzvpnAppVersion in Directory.Build.props), a run aborts if that tag already
+  # exists (so every release needs a version bump), and it is a real release on
+  # main, a prerelease from any other branch.
   workflow_dispatch:
 
 jobs:
@@ -26,13 +27,24 @@ jobs:
         id: ver
         shell: pwsh
         run: |
+          $props = [xml](Get-Content gui/Directory.Build.props)
+          $version = "$($props.SelectSingleNode('//EzvpnAppVersion').InnerText)".Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Could not parse EzvpnAppVersion from Directory.Build.props (got '$version')" }
+          $tag = "v$version"
+          if ("${{ github.ref }}" -ne "refs/heads/main") {
+            $title = "Prerelease $tag"; $pre = "true"
+          } else {
+            $title = "Release $tag"; $pre = "false"
+          }
+          # A published release creates its tag; refuse to reuse a version.
+          if (git -C gui ls-remote --tags origin "refs/tags/$tag") {
+            throw "Tag $tag already exists on remote: bump EzvpnAppVersion in Directory.Build.props"
+          }
           $now = (Get-Date).ToUniversalTime()
-          # Release tag: UTC timestamp + short commit hash, always a prerelease.
-          $sha = "${{ github.sha }}".Substring(0, 7)
-          $ts = $now.ToString('yyyyMMddHHmmss')
-          $tag = "$ts-$sha"
-          # MSI ProductVersion is derived from the same build time — not
-          # user-supplied. MSI compares major.minor.build (major/minor <= 255,
+          # MSI ProductVersion stays derived from the build time — not the app
+          # version — so it keeps increasing across every build ever shipped,
+          # including the earlier timestamp-tagged ones (26.x), and MajorUpgrade
+          # never sees a downgrade. MSI compares major.minor.build (major/minor <= 255,
           # build <= 65535; the 4th field is ignored), so encode the timestamp as
           # a monotonically increasing version that keeps MajorUpgrade working:
           #   major = years since 2000, minor = month, build = minutes into month.
@@ -42,6 +54,8 @@ jobs:
           $product = "$major.$minor.$build.0"
           "product=$product"      >> $env:GITHUB_OUTPUT
           "release_tag=$tag"      >> $env:GITHUB_OUTPUT
+          "release_title=$title"  >> $env:GITHUB_OUTPUT
+          "is_prerelease=$pre"    >> $env:GITHUB_OUTPUT
 
       - name: Publish app (self-contained)
         shell: pwsh
@@ -59,21 +73,23 @@ jobs:
         run: |
           $pub = (Resolve-Path publish).Path
           dotnet build gui/installer/Ezvpn.Installer.wixproj -c Release "-p:PublishDir=$pub" "-p:ProductVersion=${{ steps.ver.outputs.product }}"
-          Copy-Item gui/installer/bin/Release/ezvpn.msi "ezvpn-${{ steps.ver.outputs.release_tag }}.msi"
+          # Unversioned asset name, like the sibling repos; the tag carries the version.
+          Copy-Item gui/installer/bin/Release/ezvpn.msi ezvpn.msi
 
       - name: Upload MSI artifact
         uses: actions/upload-artifact@v4
         with:
           name: ezvpn-msi
-          path: ezvpn-*.msi
+          path: ezvpn.msi
 
-      - name: Publish prerelease
-        # Always a prerelease, tagged yyyymmddhhmmss-<short-sha>. The tag is created
-        # on the triggering commit if it does not already exist.
+      - name: Publish release
+        # v<EzvpnAppVersion>: a real release on main, a prerelease elsewhere. The
+        # tag is created on the triggering commit.
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.ver.outputs.release_tag }}
-          name: ${{ steps.ver.outputs.release_tag }}
+          name: ${{ steps.ver.outputs.release_title }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
-          files: ezvpn-*.msi
+          prerelease: ${{ steps.ver.outputs.is_prerelease }}
+          generate_release_notes: true
+          files: ezvpn.msi
