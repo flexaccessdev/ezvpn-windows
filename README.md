@@ -129,8 +129,11 @@ dotnet build installer/Ezvpn.Installer.wixproj -c Release -p:PublishDir="$(Resol
 # -> installer/bin/Release/ezvpn.msi
 ```
 
-Releases are built on demand (`.github/workflows/release.yml`, `workflow_dispatch`):
-each run self-tags a `yyyymmddhhmmss-<short-sha>` prerelease. It does **no** Rust /
+Releases are built on demand (`.github/workflows/release.yml`, `workflow_dispatch`),
+like the sibling repos: the release is tagged `v<EzvpnAppVersion>` from
+`Directory.Build.props`, a run aborts if that tag already exists (so bump
+`EzvpnAppVersion` before each release), and it is a real release on `main`, a
+prerelease from any other branch. The asset is `ezvpn.msi`. It does **no** Rust /
 core build — `native.targets` downloads the prebuilt, SHA256-verified `ezvpn.dll`
 from the pinned `ezvpn` release (and `wintun.dll` from wintun.net) during publish.
 Change which DLL ships by re-pinning with `scripts\bump-dll.ps1`.
