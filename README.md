@@ -190,3 +190,7 @@ Keys are shared across profiles: several profiles can authenticate with the same
 device identity. A profile keeps its own copy of the secret it was saved with, so
 deleting a key from the list doesn't break profiles already using it — but they
 can't be re-saved until a key is picked again.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
