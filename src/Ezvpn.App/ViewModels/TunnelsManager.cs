@@ -31,7 +31,7 @@ public sealed class TunnelsManager : ObservableObject
     {
         _dispatcher = dispatcher;
         _store = new ProfileStore(mock: SecretStore.IsMemory);
-        AuthKeys = new AuthKeyStore(new CredentialAuthKeyStore(), AuthKey.PublicKeyFor);
+        AuthKeys = new AuthKeyStore(new CredentialAuthKeyStore(SecretStore.Backend), AuthKey.PublicKeyFor);
 
         foreach (var profile in _store.LoadAll())
         {
