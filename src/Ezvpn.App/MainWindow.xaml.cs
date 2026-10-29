@@ -20,7 +20,8 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
 
-        Title = "ezvpn";
+        // A mock run says so, so its empty profile list isn't taken for lost data.
+        Title = SecretStore.IsMemory ? "ezvpn (mock keychain)" : "ezvpn";
         VersionText.Text = AppInfo.Summary;
         _manager = new TunnelsManager(DispatcherQueue);
         RootGrid.DataContext = _manager;

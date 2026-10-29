@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using Ezvpn.Core;
 
 namespace Ezvpn.App.Services;
 
@@ -17,12 +18,30 @@ namespace Ezvpn.App.Services;
 /// <item><c>ezvpn-key:&lt;keyId&gt;</c> — one record of the app's named auth-key
 /// list (see <see cref="CredentialAuthKeyStore"/>).</item>
 /// </list>
+///
+/// Under <c>EZVPN_KEYCHAIN=mock</c> (see <see cref="KeychainMode"/>) the same
+/// targets live in memory instead (<see cref="UseMemory"/>) and Credential
+/// Manager is never called.
 /// </summary>
 public static class SecretStore
 {
     private const uint CRED_TYPE_GENERIC = 1;
     private const uint CRED_PERSIST_LOCAL_MACHINE = 2;
     private const int ERROR_NOT_FOUND = 1168;
+
+    // The mock store, or null for Credential Manager. Targets compare
+    // case-insensitively, as Credential Manager's do.
+    private static Dictionary<string, string>? _memory;
+
+    /// <summary>Whether this run keeps its secrets in memory (<see cref="UseMemory"/>).</summary>
+    public static bool IsMemory => _memory is not null;
+
+    /// <summary>
+    /// Keep every secret in memory for the rest of the process instead of in
+    /// Credential Manager: the <c>EZVPN_KEYCHAIN=mock</c> backend. Call once at
+    /// launch, before anything reads a secret.
+    /// </summary>
+    public static void UseMemory() => _memory = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Target prefix of the named auth-key records.</summary>
     internal const string KeyRecordPrefix = "ezvpn-key:";
@@ -56,6 +75,14 @@ public static class SecretStore
     /// <summary>Write a generic credential, overwriting any existing one.</summary>
     internal static void Write(string target, string value)
     {
+        if (_memory is { } memory)
+        {
+            lock (memory)
+            {
+                memory[target] = value;
+            }
+            return;
+        }
         var blob = Encoding.Unicode.GetBytes(value);
         var blobPtr = Marshal.AllocHGlobal(blob.Length);
         var targetPtr = Marshal.StringToCoTaskMemUni(target);
@@ -89,6 +116,13 @@ public static class SecretStore
     /// </summary>
     internal static string? Read(string target)
     {
+        if (_memory is { } memory)
+        {
+            lock (memory)
+            {
+                return memory.TryGetValue(target, out var value) ? value : null;
+            }
+        }
         if (!CredReadW(target, CRED_TYPE_GENERIC, 0, out var credPtr))
         {
             var error = Marshal.GetLastWin32Error();
@@ -111,6 +145,14 @@ public static class SecretStore
     /// <summary>Delete a generic credential (no-op if absent).</summary>
     internal static void Delete(string target)
     {
+        if (_memory is { } memory)
+        {
+            lock (memory)
+            {
+                memory.Remove(target);
+            }
+            return;
+        }
         if (!CredDeleteW(target, CRED_TYPE_GENERIC, 0))
         {
             var error = Marshal.GetLastWin32Error();
@@ -129,6 +171,16 @@ public static class SecretStore
     /// </summary>
     internal static IReadOnlyList<(string Suffix, string Value)> Enumerate(string prefix)
     {
+        if (_memory is { } memory)
+        {
+            lock (memory)
+            {
+                return memory
+                    .Where(e => e.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    .Select(e => (e.Key[prefix.Length..], e.Value))
+                    .ToList();
+            }
+        }
         // CredEnumerate's filter is a target-name prefix and must end in '*'.
         if (!CredEnumerateW(prefix + "*", 0, out var count, out var arrayPtr))
         {

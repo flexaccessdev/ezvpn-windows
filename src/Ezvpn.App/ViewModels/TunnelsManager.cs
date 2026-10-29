@@ -30,7 +30,7 @@ public sealed class TunnelsManager : ObservableObject
     public TunnelsManager(DispatcherQueue dispatcher)
     {
         _dispatcher = dispatcher;
-        _store = new ProfileStore();
+        _store = new ProfileStore(mock: SecretStore.IsMemory);
         AuthKeys = new AuthKeyStore(new CredentialAuthKeyStore(), AuthKey.PublicKeyFor);
 
         foreach (var profile in _store.LoadAll())

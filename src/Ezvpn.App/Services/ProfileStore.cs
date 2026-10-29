@@ -9,6 +9,11 @@ namespace Ezvpn.App.Services;
 /// matches the CLI's config dir). One file per profile, named by id. No secret is
 /// stored here — the profile's auth key and relay token live in Credential
 /// Manager, see <see cref="SecretStore"/>.
+///
+/// An <c>EZVPN_KEYCHAIN=mock</c> run (see <see cref="KeychainMode"/>) uses
+/// <c>%ProgramData%\ezvpn\mock-profiles\</c> instead, emptied here at start:
+/// the previous mock run's secrets died with its process, so its profiles
+/// could never connect, and the real profiles are never read or written.
 /// </summary>
 public sealed class ProfileStore
 {
@@ -16,12 +21,16 @@ public sealed class ProfileStore
 
     private readonly string _dir;
 
-    public ProfileStore()
+    public ProfileStore(bool mock)
     {
         _dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
             "ezvpn",
-            "profiles");
+            mock ? "mock-profiles" : "profiles");
+        if (mock && Directory.Exists(_dir))
+        {
+            Directory.Delete(_dir, recursive: true);
+        }
         Directory.CreateDirectory(_dir);
     }
 

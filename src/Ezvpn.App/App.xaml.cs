@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using Ezvpn.App.Services;
+using Ezvpn.Core;
 using Ezvpn.Core.Interop;
 using Microsoft.UI.Xaml;
 
@@ -38,6 +40,24 @@ public partial class App : Application
 
             // Route the Rust core's logs to stderr (honors RUST_LOG).
             EzvpnSession.InitLogging();
+
+            // EZVPN_KEYCHAIN=mock: secrets in memory, profiles in their own
+            // directory, before anything reads either. Any other value is
+            // refused here rather than read as Credential Manager.
+            bool mock;
+            try
+            {
+                mock = KeychainMode.IsMock(Environment.GetEnvironmentVariable(KeychainMode.Variable));
+            }
+            catch (ArgumentException ex)
+            {
+                ReportFatalStartup("ezvpn cannot start", ex.Message);
+                return;
+            }
+            if (mock)
+            {
+                SecretStore.UseMemory();
+            }
 
             _window = new MainWindow();
             _window.Activate();

@@ -121,6 +121,26 @@ dotnet run --project src/Ezvpn.App
 
 Note it's a GUI app: output goes to a window, never to the terminal.
 
+### Mock keychain for end-to-end tests
+
+Set `EZVPN_KEYCHAIN=mock` for an end-to-end or QA run that must not touch this
+machine's Credential Manager entries or saved profiles. Start the app from an
+**already-elevated** terminal so it inherits the variable:
+
+```powershell
+$env:EZVPN_KEYCHAIN = "mock"
+& "C:\Program Files\ezvpn\Ezvpn.App.exe"   # or: dotnet run --project src/Ezvpn.App
+```
+
+- Every secret (named auth keys, each profile's auth key and relay token) lives
+  in memory and is gone when the app quits. The window title says
+  *ezvpn (mock keychain)*.
+- Profiles go to `%ProgramData%\ezvpn\mock-profiles\`, emptied at every start
+  (the last mock run's secrets are gone, so its profiles could never connect).
+  The real `profiles\` directory is never read or written.
+- The variable takes `mock` or nothing: any other value is refused at launch
+  rather than read as Credential Manager.
+
 ## Installer (MSI)
 
 ```powershell
