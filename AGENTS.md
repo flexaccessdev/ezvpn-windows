@@ -55,6 +55,15 @@ The Rust core + C FFI live in the `../ezvpn` repo (`src/ffi_windows.rs`,
   `ezvpn-relay:<profileId>` (the optional relay token) and `ezvpn-key:<keyId>`
   (one record per named key — one credential each, because a credential blob caps
   out at 2560 bytes).
+- For end-to-end and QA runs set `EZVPN_KEYCHAIN=mock` (`KeychainMode`): the same
+  targets live in memory (`SecretStore.UseMemory` swaps the `ISecretBackend` from
+  `CredentialManager` to Core's `MemorySecretBackend`, so Credential Manager is
+  never called) and profiles go to `%ProgramData%\ezvpn\mock-profiles`, emptied
+  at every start, so the machine's credentials and profiles are never touched.
+  Any value other than `mock` is a fatal startup error. See the README.
+- Tests run against that same mock: `MemorySecretBackend` under the real
+  `CredentialAuthKeyStore` record format (both in `Ezvpn.Core`). Don't write a
+  separate fake store; wrap the mock when a test needs a failing call.
 - Installer uses **WiX v5** (v6/v7 require accepting the paid OSMF EULA). The MSI
   is unsigned by design; code signing and MSIX/Store packaging are out of scope.
 - Use classic `[DllImport]` (not `[LibraryImport]`) for the `advapi32`

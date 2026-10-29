@@ -1,14 +1,13 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Ezvpn.Core;
 
-namespace Ezvpn.App.Services;
+namespace Ezvpn.Core;
 
 /// <summary>
-/// The app's named auth keys in Windows Credential Manager: one credential per
-/// key, targeted <c>ezvpn-key:&lt;keyId&gt;</c>, whose blob is
-/// <c>{"name":…,"secret":…}</c>. The name is not sensitive but rides along with
-/// the secret so a key is one atomic record.
+/// The app's named auth keys as credentials: one per key, targeted
+/// <c>ezvpn-key:&lt;keyId&gt;</c>, whose blob is <c>{"name":…,"secret":…}</c>.
+/// The name is not sensitive but rides along with the secret so a key is one
+/// atomic record.
 ///
 /// One credential per key (rather than the single list document the Apple and
 /// Android apps store) because a Credential Manager blob is capped at 2560
@@ -17,6 +16,13 @@ namespace Ezvpn.App.Services;
 /// </summary>
 public sealed class CredentialAuthKeyStore : IAuthKeyRecordStore
 {
+    /// <summary>Target prefix of the named auth-key records.</summary>
+    public const string KeyRecordPrefix = "ezvpn-key:";
+
+    private readonly ISecretBackend _secrets;
+
+    public CredentialAuthKeyStore(ISecretBackend secrets) => _secrets = secrets;
+
     // Nullable on the way in: System.Text.Json does not enforce non-nullable
     // annotations, so an explicit `"secret": null` in a hand-edited credential
     // would land as null however this is declared. Better to say so and check.
@@ -32,7 +38,7 @@ public sealed class CredentialAuthKeyStore : IAuthKeyRecordStore
     public IReadOnlyList<StoredAuthKey> LoadAll()
     {
         var result = new List<StoredAuthKey>();
-        foreach (var (id, json) in SecretStore.Enumerate(SecretStore.KeyRecordPrefix))
+        foreach (var (id, json) in _secrets.Enumerate(KeyRecordPrefix))
         {
             Record? record;
             try
@@ -59,9 +65,9 @@ public sealed class CredentialAuthKeyStore : IAuthKeyRecordStore
     }
 
     public void Save(StoredAuthKey record) =>
-        SecretStore.Write(
-            SecretStore.KeyRecordPrefix + record.Id,
+        _secrets.Write(
+            KeyRecordPrefix + record.Id,
             JsonSerializer.Serialize(new Record { Name = record.Name, Secret = record.Secret }));
 
-    public void Delete(string id) => SecretStore.Delete(SecretStore.KeyRecordPrefix + id);
+    public void Delete(string id) => _secrets.Delete(KeyRecordPrefix + id);
 }

@@ -5,7 +5,7 @@ public sealed record StoredAuthKey(string Id, string Name, string Secret);
 
 /// <summary>
 /// Persistence for the app's named auth keys, one record per key. Implemented
-/// against Windows Credential Manager (see <c>CredentialAuthKeyStore</c>); the
+/// over an <see cref="ISecretBackend"/> (see <see cref="CredentialAuthKeyStore"/>); the
 /// interface exists so <see cref="AuthKeyStore"/> stays pure and testable.
 ///
 /// Unlike the Apple and Android apps — which keep the whole list as a single

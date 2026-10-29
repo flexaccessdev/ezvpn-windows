@@ -6,38 +6,45 @@ namespace Ezvpn.Core.Tests;
 public class AuthKeyStoreTests
 {
     /// <summary>
-    /// In-memory stand-in for Credential Manager. <see cref="FailOn"/> makes one
-    /// kind of write blow up, the way a Credential Manager failure would.
+    /// The mock keychain (<see cref="MemorySecretBackend"/>, what
+    /// <c>EZVPN_KEYCHAIN=mock</c> runs on) with fault injection:
+    /// <see cref="FailOn"/> makes one kind of call blow up, the way a Credential
+    /// Manager failure would.
     /// </summary>
-    private sealed class FakeRecordStore : IAuthKeyRecordStore
+    private sealed class FlakySecrets : ISecretBackend
     {
-        public Dictionary<string, StoredAuthKey> Records { get; } = new();
-        public bool FailLoad { get; set; }
-        public string? FailOn { get; set; } // "save" or "delete"
+        private readonly MemorySecretBackend _inner = new();
+        public string? FailOn { get; set; } // "enumerate", "write" or "delete"
 
-        public IReadOnlyList<StoredAuthKey> LoadAll() =>
-            FailLoad
-                ? throw new InvalidOperationException("CredEnumerate failed (error 5).")
-                : Records.Values.ToList();
-
-        public void Save(StoredAuthKey record)
+        public void Write(string target, string value)
         {
-            if (FailOn == "save")
+            if (FailOn == "write")
             {
                 throw new InvalidOperationException("CredWrite failed (error 87).");
             }
-            Records[record.Id] = record;
+            _inner.Write(target, value);
         }
 
-        public void Delete(string id)
+        public string? Read(string target) => _inner.Read(target);
+
+        public void Delete(string target)
         {
             if (FailOn == "delete")
             {
                 throw new InvalidOperationException("CredDelete failed (error 5).");
             }
-            Records.Remove(id);
+            _inner.Delete(target);
         }
+
+        public IReadOnlyList<(string Suffix, string Value)> Enumerate(string prefix) =>
+            FailOn == "enumerate"
+                ? throw new InvalidOperationException("CredEnumerate failed (error 5).")
+                : _inner.Enumerate(prefix);
     }
+
+    /// <summary>What is actually stored, read back through the real record format.</summary>
+    private static Dictionary<string, StoredAuthKey> Stored(FlakySecrets secrets) =>
+        new CredentialAuthKeyStore(secrets).LoadAll().ToDictionary(r => r.Id);
 
     // Public halves are derived, never stored: the fake mirrors the Rust core by
     // accepting only the "ed25519-sec:" form and deriving a matching public key.
@@ -46,13 +53,13 @@ public class AuthKeyStoreTests
             ? "ed25519-pub:" + secret["ed25519-sec:".Length..]
             : null;
 
-    private static AuthKeyStore StoreOver(FakeRecordStore storage) =>
-        new(storage, Derive);
+    private static AuthKeyStore StoreOver(FlakySecrets secrets) =>
+        new(new CredentialAuthKeyStore(secrets), Derive);
 
     [Fact]
     public void Add_StoresTheRecordAndDerivesThePublicKey()
     {
-        var storage = new FakeRecordStore();
+        var storage = new FlakySecrets();
         var store = StoreOver(storage);
 
         Assert.Null(store.Add("laptop", "  ed25519-sec:AAAA  ", out var added));
@@ -61,14 +68,14 @@ public class AuthKeyStoreTests
         // The secret is trimmed and the public half derived, not persisted.
         Assert.Equal("ed25519-sec:AAAA", added.Secret);
         Assert.Equal("ed25519-pub:AAAA", added.PublicKey);
-        Assert.Equal(added.Secret, Assert.Single(storage.Records).Value.Secret);
+        Assert.Equal(added.Secret, Assert.Single(Stored(storage)).Value.Secret);
         Assert.Same(added, store.Find(added.Id));
     }
 
     [Fact]
     public void Add_RejectsBlankAndDuplicateNames()
     {
-        var store = StoreOver(new FakeRecordStore());
+        var store = StoreOver(new FlakySecrets());
         store.Add("laptop", "ed25519-sec:AAAA", out _);
 
         Assert.NotNull(store.Add("", "ed25519-sec:BBBB", out _));
@@ -79,7 +86,7 @@ public class AuthKeyStoreTests
     [Fact]
     public void Add_RejectsAnUnparsableSecret()
     {
-        var store = StoreOver(new FakeRecordStore());
+        var store = StoreOver(new FlakySecrets());
 
         Assert.Contains("Not a valid secret key", store.Add("laptop", "hunter2", out var added));
         Assert.Null(added);
@@ -89,7 +96,7 @@ public class AuthKeyStoreTests
     [Fact]
     public void Add_RejectsTheSameKeypairTwice()
     {
-        var store = StoreOver(new FakeRecordStore());
+        var store = StoreOver(new FlakySecrets());
         store.Add("laptop", "ed25519-sec:AAAA", out _);
 
         Assert.Contains("already holds this secret", store.Add("desktop", "ed25519-sec:AAAA", out _));
@@ -99,19 +106,19 @@ public class AuthKeyStoreTests
     [Fact]
     public void Add_LeavesTheListUntouchedWhenTheWriteFails()
     {
-        var storage = new FakeRecordStore { FailOn = "save" };
+        var storage = new FlakySecrets { FailOn = "write" };
         var store = StoreOver(storage);
 
         Assert.Contains("CredWrite failed", store.Add("laptop", "ed25519-sec:AAAA", out var added));
         Assert.Null(added);
         Assert.Empty(store.Keys);
-        Assert.Empty(storage.Records);
+        Assert.Empty(Stored(storage));
     }
 
     [Fact]
     public void Rename_ValidatesAndPersists()
     {
-        var storage = new FakeRecordStore();
+        var storage = new FlakySecrets();
         var store = StoreOver(storage);
         store.Add("laptop", "ed25519-sec:AAAA", out var key);
         store.Add("desktop", "ed25519-sec:BBBB", out _);
@@ -121,19 +128,19 @@ public class AuthKeyStoreTests
         Assert.Null(store.Rename(key.Id, "  work laptop "));
 
         Assert.Equal("work laptop", store.Find(key.Id)!.Name);
-        Assert.Equal("work laptop", storage.Records[key.Id].Name);
+        Assert.Equal("work laptop", Stored(storage)[key.Id].Name);
         // The secret rides along unchanged.
-        Assert.Equal("ed25519-sec:AAAA", storage.Records[key.Id].Secret);
+        Assert.Equal("ed25519-sec:AAAA", Stored(storage)[key.Id].Secret);
     }
 
     [Fact]
     public void Rename_KeepsTheStoredNameWhenTheWriteFails()
     {
-        var storage = new FakeRecordStore();
+        var storage = new FlakySecrets();
         var store = StoreOver(storage);
         store.Add("laptop", "ed25519-sec:AAAA", out var key);
 
-        storage.FailOn = "save";
+        storage.FailOn = "write";
         Assert.Contains("CredWrite failed", store.Rename(key!.Id, "renamed"));
         Assert.Equal("laptop", store.Find(key.Id)!.Name);
     }
@@ -141,7 +148,7 @@ public class AuthKeyStoreTests
     [Fact]
     public void Delete_RemovesTheRecord_AndKeepsItWhenTheWriteFails()
     {
-        var storage = new FakeRecordStore();
+        var storage = new FlakySecrets();
         var store = StoreOver(storage);
         store.Add("laptop", "ed25519-sec:AAAA", out var key);
 
@@ -152,7 +159,7 @@ public class AuthKeyStoreTests
         storage.FailOn = null;
         Assert.Null(store.Delete(key.Id));
         Assert.Empty(store.Keys);
-        Assert.Empty(storage.Records);
+        Assert.Empty(Stored(storage));
         // Deleting what is already gone is a no-op, not an error.
         Assert.Null(store.Delete(key.Id));
     }
@@ -160,7 +167,7 @@ public class AuthKeyStoreTests
     [Fact]
     public void Keys_AreOrderedByNameAndStayOrderedThroughEdits()
     {
-        var store = StoreOver(new FakeRecordStore());
+        var store = StoreOver(new FlakySecrets());
         store.Add("zeta", "ed25519-sec:AAAA", out _);
         store.Add("alpha", "ed25519-sec:BBBB", out var alpha);
         store.Add("Mid", "ed25519-sec:CCCC", out _);
@@ -174,22 +181,23 @@ public class AuthKeyStoreTests
     [Fact]
     public void Load_DropsRecordsWhoseSecretNoLongerParses_WithoutDeletingThem()
     {
-        var storage = new FakeRecordStore();
-        storage.Records["a"] = new StoredAuthKey("a", "good", "ed25519-sec:AAAA");
-        storage.Records["b"] = new StoredAuthKey("b", "corrupt", "garbage");
+        var storage = new FlakySecrets();
+        var records = new CredentialAuthKeyStore(storage);
+        records.Save(new StoredAuthKey("a", "good", "ed25519-sec:AAAA"));
+        records.Save(new StoredAuthKey("b", "corrupt", "garbage"));
 
         var store = StoreOver(storage);
 
         Assert.Equal("good", Assert.Single(store.Keys).Name);
         // Derivation goes through the native library; a transient failure there
         // must not destroy a stored key.
-        Assert.Equal(2, storage.Records.Count);
+        Assert.Equal(2, Stored(storage).Count);
     }
 
     [Fact]
     public void AnUnreadableStore_ReportsAndRefusesEveryWrite()
     {
-        var storage = new FakeRecordStore { FailLoad = true };
+        var storage = new FlakySecrets { FailOn = "enumerate" };
         var store = StoreOver(storage);
 
         Assert.NotNull(store.LoadError);
@@ -199,13 +207,14 @@ public class AuthKeyStoreTests
         Assert.Equal(store.LoadError, store.Add("laptop", "ed25519-sec:AAAA", out _));
         Assert.Equal(store.LoadError, store.Rename("a", "laptop"));
         Assert.Equal(store.LoadError, store.Delete("a"));
-        Assert.Empty(storage.Records);
+        storage.FailOn = null;
+        Assert.Empty(Stored(storage));
     }
 
     [Fact]
     public void AnEmptyStore_IsNotALoadFailure()
     {
-        var store = StoreOver(new FakeRecordStore());
+        var store = StoreOver(new FlakySecrets());
 
         Assert.Null(store.LoadError);
         Assert.Empty(store.Keys);
