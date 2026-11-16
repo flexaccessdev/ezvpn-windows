@@ -28,10 +28,15 @@ $Log        = 'C:\provision\ezvpn-windows-provision.log'
 
 function Log($m) { "[{0:HH:mm:ss}] {1}" -f (Get-Date), $m | Tee-Object -FilePath $Log -Append }
 
+# Set by every step below that changes the machine environment; sshd is restarted
+# only when one did (see the end).
+$script:MachineEnvChanged = $false
+
 function Add-MachinePath($dir) {
     $p = [Environment]::GetEnvironmentVariable('Path', 'Machine')
     if ($p -notlike "*$dir*") {
         [Environment]::SetEnvironmentVariable('Path', "$p;$dir", 'Machine')
+        $script:MachineEnvChanged = $true
         Log "added $dir to machine PATH"
     }
     # The running process needs it too — later steps in this script use it.
@@ -41,6 +46,7 @@ function Add-MachinePath($dir) {
 function Set-MachineEnv($name, $value) {
     if ([Environment]::GetEnvironmentVariable($name, 'Machine') -ne $value) {
         [Environment]::SetEnvironmentVariable($name, $value, 'Machine')
+        $script:MachineEnvChanged = $true
         Log "set $name=$value (machine)"
     }
     Set-Item -Path "env:$name" -Value $value
@@ -103,6 +109,7 @@ try {
     New-Item -ItemType Directory -Force -Path 'C:\ci-workspaces' | Out-Null
     if ([Environment]::GetEnvironmentVariable('NUGET_PACKAGES', 'Machine')) {
         [Environment]::SetEnvironmentVariable('NUGET_PACKAGES', $null, 'Machine')
+        $script:MachineEnvChanged = $true
         Log 'removed the machine-wide NUGET_PACKAGES'
     }
 
@@ -110,9 +117,15 @@ try {
 
     # sshd captured its environment when the service started, and children
     # inherit that block — so machine PATH changes are invisible over ssh until
-    # it restarts. Nothing above takes effect for CI runs without this.
-    Log 'restarting sshd so ssh sessions see the new machine environment'
-    Restart-Service sshd
+    # it restarts. Only then, though: a re-run that installed a runtime under
+    # C:\dotnet but changed no variable has nothing for sshd to pick up, and a
+    # restart could cut off a CI run that is connected right now.
+    if ($script:MachineEnvChanged) {
+        Log 'restarting sshd so ssh sessions see the new machine environment'
+        Restart-Service sshd
+    } else {
+        Log 'machine environment unchanged, leaving sshd running'
+    }
 
     Log 'DONE-OK'
 } catch {

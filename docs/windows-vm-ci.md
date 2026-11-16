@@ -132,7 +132,8 @@ present; to move to a newer one, delete `C:\dotnet\sdk\<old>` (or all of
 when it starts and every session inherits that copy, so a machine-scoped `PATH`
 or `DOTNET_*` change is invisible over ssh until `Restart-Service sshd`. Set
 the variables, watch `dotnet` still not be found, conclude the install failed —
-it did not. `provision.ps1` restarts sshd as its last step for this reason; if
+it did not. `provision.ps1` restarts sshd as its last step for this reason, when it
+changed a machine variable (a re-run that changed none leaves sshd alone); if
 you set a machine variable by hand afterwards, restart it again.
 
 ## Two things that shape `remote.ps1`
