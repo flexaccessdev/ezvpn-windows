@@ -31,8 +31,8 @@ The Rust core + C FFI live in the `../ezvpn` repo (`src/ffi_windows.rs`,
   something works: it needs a commit and a push to trigger, and it is slow even
   warm, because a GitHub runner starts with a cold NuGet cache every time. It
   runs itself on push/PR — read it after the fact, don't drive it.
-  `ci\windows\ci.ps1` is the same four steps on the VM, with its NuGet cache
-  restored from devtools' restic build cache;
+  `ci\windows\ci.ps1` is the same four steps on the VM, also from an empty
+  NuGet cache;
   when the two disagree, the workflow is right and `ci.ps1` is stale.
 
 ## Conventions
