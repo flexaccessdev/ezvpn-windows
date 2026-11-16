@@ -34,14 +34,14 @@ on the Mac) and only shells out to `ssh`, `scp` and `tar`.
 pwsh ./ci/windows/remote.ps1              # build, test, publish, MSI
 pwsh ./ci/windows/remote.ps1 shell        # interactive shell on the VM, in the tree
 pwsh ./ci/windows/remote.ps1 doctor       # report on the VM, change nothing
-pwsh ./ci/windows/remote.ps1 clean        # drop the VM's package dir and any old cache snapshots
+pwsh ./ci/windows/remote.ps1 clean        # drop the VM's NuGet cache (and any old restic snapshots)
 pwsh ./ci/windows/remote.ps1 provision    # (re)run provision.ps1 on the VM
 ```
 
 `EZVPN_WINCI_HOST` overrides the ssh target (default: the `windows-ci-build`
 alias), `EZVPN_WINCI_STAGING` the staging root (default `C:\ci-workspaces`,
-under which the workspace, its lock and the run's package cache live), and
-`EZVPN_WINCI_CACHE_DIR` the run's package cache (default
+under which the workspace, its lock and the NuGet cache live), and
+`EZVPN_WINCI_CACHE_DIR` the NuGet cache (default
 `C:\ci-workspaces\ezvpn-windows-nuget`).
 
 The tree is copied rather than fetched from git: the reason to run this instead
@@ -107,15 +107,16 @@ DOTNET_CLI_TELEMETRY_OPTOUT   1
 DOTNET_NOLOGO                 1
 ```
 
-There is no machine-wide `NUGET_PACKAGES`, and no package cache between runs:
-`remote.ps1` gives each run an empty `C:\ci-workspaces\ezvpn-windows-nuget` as
-`NUGET_PACKAGES` and deletes it afterwards, so every run downloads its packages
-from nuget.org. Unlike the rust and bun repos, the packages are not kept in
-devtools' restic build cache. Restoring the 2.2 GB snapshot took about as long
-as NuGet downloading it again, so the cache saved no time (details at the top
-of devtools' `ci/windows/remote.ps1`). `bin\` and `obj\` go with the workspace,
-so every run is a full compile too, and MSBuild is fast enough that redirecting
-the intermediate output is not worth the per-project plumbing.
+There is no machine-wide `NUGET_PACKAGES`. `remote.ps1` points every run at
+`C:\ci-workspaces\ezvpn-windows-nuget` and keeps it on the VM between runs, so
+NuGet downloads only the packages it doesn't have yet. It isn't kept in devtools'
+restic build cache, as the rust repos' target dirs are: restoring the 2.2 GB
+snapshot took as long as downloading the packages. A run that finds the cache
+older than 30 days (by the `ezvpn-windows-nuget.created` stamp beside it)
+starts it afresh, so it cannot grow without end; `remote.ps1 clean` drops it
+now. `bin\` and `obj\` go with the workspace, so every run is a full compile,
+and MSBuild is fast enough that redirecting the intermediate output is not
+worth the per-project plumbing.
 
 Nothing pins the SDK, so it drifts with whatever `-Channel 10.0` resolves to on
 install day. Re-running `remote.ps1 provision` is a no-op once a 10.x SDK is
@@ -144,7 +145,7 @@ happy side effect is that a half-finished transfer can never be unpacked.
 unpacking over the previous tree would leave a file you deleted here still
 sitting there and still being compiled. `remote.ps1` removes the directory and
 recreates it. Nothing under it needs to survive — NuGet's packages go to
-the sibling `C:\ci-workspaces\ezvpn-windows-nuget`, which is per run too.
+the sibling `C:\ci-workspaces\ezvpn-windows-nuget`, which outlives it.
 
 Paths on the remote side deliberately contain no spaces, so no remote command
 needs quoting: a quoted string has to survive PowerShell, then ssh, then
