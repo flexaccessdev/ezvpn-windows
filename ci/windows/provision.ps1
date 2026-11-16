@@ -104,8 +104,8 @@ try {
     Set-MachineEnv 'DOTNET_NOLOGO' '1'
 
     # No machine-wide NUGET_PACKAGES: devtools' remote.ps1 gives each run its
-    # own package dir and restores it from the build cache's restic repository.
-    # One an earlier provision set would only fill a cache nothing saves.
+    # own package dir and deletes it afterwards. One an earlier provision set
+    # would only collect packages that no run reads.
     New-Item -ItemType Directory -Force -Path 'C:\ci-workspaces' | Out-Null
     if ([Environment]::GetEnvironmentVariable('NUGET_PACKAGES', 'Machine')) {
         [Environment]::SetEnvironmentVariable('NUGET_PACKAGES', $null, 'Machine')
