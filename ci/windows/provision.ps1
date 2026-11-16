@@ -97,13 +97,14 @@ try {
     Set-MachineEnv 'DOTNET_CLI_TELEMETRY_OPTOUT' '1'
     Set-MachineEnv 'DOTNET_NOLOGO' '1'
 
-    # NuGet's package cache outside the workspace: remote.ps1 replaces the
-    # workspace directory outright on every run, so anything cached inside it
-    # is thrown away. This is what makes a warm run restore from disk instead
-    # of from nuget.org. (bin/obj still go with the workspace, so every run is
-    # a full compile — it is the restore that is worth keeping.)
-    New-Item -ItemType Directory -Force -Path 'C:\ci-cache\nuget', 'C:\ci-workspaces' | Out-Null
-    Set-MachineEnv 'NUGET_PACKAGES' 'C:\ci-cache\nuget'
+    # No machine-wide NUGET_PACKAGES: devtools' remote.ps1 gives each run its
+    # own package dir and restores it from the build cache's restic repository.
+    # One an earlier provision set would only fill a cache nothing saves.
+    New-Item -ItemType Directory -Force -Path 'C:\ci-workspaces' | Out-Null
+    if ([Environment]::GetEnvironmentVariable('NUGET_PACKAGES', 'Machine')) {
+        [Environment]::SetEnvironmentVariable('NUGET_PACKAGES', $null, 'Machine')
+        Log 'removed the machine-wide NUGET_PACKAGES'
+    }
 
     Log "dotnet: $(& $DotnetRoot\dotnet.exe --version)"
 

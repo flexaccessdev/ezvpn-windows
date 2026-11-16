@@ -9,4 +9,7 @@ if (-not (Test-Path $SharedScript)) {
     throw "devtools not found at $DevTools — git clone git@github.com:andrewtheguy/devtools.git there (or set DEVTOOLS_DIR)"
 }
 $env:DEVTOOLS_REPO_ROOT = $RepoRoot
+# With no arguments -File leaves $Rest $null, and splatting $null passes an
+# empty string that fails the driver's ValidateSet — default to no arguments.
+if ($null -eq $Rest) { $Rest = @() }
 & $SharedScript @Rest
