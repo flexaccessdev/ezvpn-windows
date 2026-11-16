@@ -103,9 +103,9 @@ try {
     Set-MachineEnv 'DOTNET_CLI_TELEMETRY_OPTOUT' '1'
     Set-MachineEnv 'DOTNET_NOLOGO' '1'
 
-    # No machine-wide NUGET_PACKAGES: devtools' remote.ps1 gives each run its
-    # own package dir and deletes it afterwards. One an earlier provision set
-    # would only collect packages that no run reads.
+    # No machine-wide NUGET_PACKAGES: devtools' remote.ps1 points each run at
+    # this repo's own package dir. One an earlier provision set would only
+    # collect packages that no run reads.
     New-Item -ItemType Directory -Force -Path 'C:\ci-workspaces' | Out-Null
     if ([Environment]::GetEnvironmentVariable('NUGET_PACKAGES', 'Machine')) {
         [Environment]::SetEnvironmentVariable('NUGET_PACKAGES', $null, 'Machine')
