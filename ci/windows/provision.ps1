@@ -28,10 +28,15 @@ $Log        = 'C:\provision\ezvpn-windows-provision.log'
 
 function Log($m) { "[{0:HH:mm:ss}] {1}" -f (Get-Date), $m | Tee-Object -FilePath $Log -Append }
 
+# Set by every step below that changes the machine environment; sshd is restarted
+# only when one did (see the end).
+$script:MachineEnvChanged = $false
+
 function Add-MachinePath($dir) {
     $p = [Environment]::GetEnvironmentVariable('Path', 'Machine')
     if ($p -notlike "*$dir*") {
         [Environment]::SetEnvironmentVariable('Path', "$p;$dir", 'Machine')
+        $script:MachineEnvChanged = $true
         Log "added $dir to machine PATH"
     }
     # The running process needs it too — later steps in this script use it.
@@ -41,6 +46,7 @@ function Add-MachinePath($dir) {
 function Set-MachineEnv($name, $value) {
     if ([Environment]::GetEnvironmentVariable($name, 'Machine') -ne $value) {
         [Environment]::SetEnvironmentVariable($name, $value, 'Machine')
+        $script:MachineEnvChanged = $true
         Log "set $name=$value (machine)"
     }
     Set-Item -Path "env:$name" -Value $value
@@ -97,21 +103,29 @@ try {
     Set-MachineEnv 'DOTNET_CLI_TELEMETRY_OPTOUT' '1'
     Set-MachineEnv 'DOTNET_NOLOGO' '1'
 
-    # NuGet's package cache outside the workspace: remote.ps1 replaces the
-    # workspace directory outright on every run, so anything cached inside it
-    # is thrown away. This is what makes a warm run restore from disk instead
-    # of from nuget.org. (bin/obj still go with the workspace, so every run is
-    # a full compile — it is the restore that is worth keeping.)
-    New-Item -ItemType Directory -Force -Path 'C:\ci-cache\nuget', 'C:\ci-workspaces' | Out-Null
-    Set-MachineEnv 'NUGET_PACKAGES' 'C:\ci-cache\nuget'
+    # No machine-wide NUGET_PACKAGES: devtools' remote.ps1 gives each run its
+    # own package dir and restores it from the build cache's restic repository.
+    # One an earlier provision set would only fill a cache nothing saves.
+    New-Item -ItemType Directory -Force -Path 'C:\ci-workspaces' | Out-Null
+    if ([Environment]::GetEnvironmentVariable('NUGET_PACKAGES', 'Machine')) {
+        [Environment]::SetEnvironmentVariable('NUGET_PACKAGES', $null, 'Machine')
+        $script:MachineEnvChanged = $true
+        Log 'removed the machine-wide NUGET_PACKAGES'
+    }
 
     Log "dotnet: $(& $DotnetRoot\dotnet.exe --version)"
 
     # sshd captured its environment when the service started, and children
     # inherit that block — so machine PATH changes are invisible over ssh until
-    # it restarts. Nothing above takes effect for CI runs without this.
-    Log 'restarting sshd so ssh sessions see the new machine environment'
-    Restart-Service sshd
+    # it restarts. Only then, though: a re-run that installed a runtime under
+    # C:\dotnet but changed no variable has nothing for sshd to pick up, and a
+    # restart could cut off a CI run that is connected right now.
+    if ($script:MachineEnvChanged) {
+        Log 'restarting sshd so ssh sessions see the new machine environment'
+        Restart-Service sshd
+    } else {
+        Log 'machine environment unchanged, leaving sshd running'
+    }
 
     Log 'DONE-OK'
 } catch {
