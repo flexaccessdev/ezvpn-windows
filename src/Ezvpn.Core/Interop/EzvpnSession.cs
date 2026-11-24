@@ -100,7 +100,17 @@ public sealed class EzvpnSession : IDisposable
     {
         var err = new byte[4096];
         var context = GCHandle.Alloc(onEvent);
-        var ptr = EzvpnNative.Start(configJson, &OnNativeEvent, GCHandle.ToIntPtr(context), err, (nuint)err.Length);
+        IntPtr ptr;
+        try
+        {
+            ptr = EzvpnNative.Start(configJson, &OnNativeEvent, GCHandle.ToIntPtr(context), err, (nuint)err.Length);
+        }
+        catch
+        {
+            // The call never ran (e.g. ezvpn.dll missing): no event can follow.
+            context.Free();
+            throw;
+        }
         if (ptr == IntPtr.Zero)
         {
             // No handle, so no event can follow: free the context now.
