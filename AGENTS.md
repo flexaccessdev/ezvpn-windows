@@ -82,5 +82,7 @@ The Rust core + C FFI live in the `../ezvpn` repo (`src/ffi_windows.rs`,
   (WinUI 3 has no tray API): it subclasses the window's WndProc for callbacks and
   uses a native `TrackPopupMenuEx` menu. Closing the window hides to the tray;
   only the tray's Quit exits the process. `SetConnected(bool)` swaps between the
-  teal (connected) and gray (not-connected) icons; `MainWindow` drives it from
-  the active tunnel's connection state.
+  teal (connected) and gray (not-connected) icons and `SetTooltip` names the
+  state; `MainWindow` drives both from `TunnelsManager.Current` (the tunnel that
+  is up or still in setup). The menu lists every profile (picking one connects
+  it); Disconnect acts on `Current`, never on the window's selection.

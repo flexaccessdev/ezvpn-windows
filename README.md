@@ -187,24 +187,30 @@ involved.
 
 ## Usage
 
-1. Launch ezvpn (accept the UAC prompt).
-2. Add an **auth key** (the key button in the left toolbar, or *Manage keys…* in
+1. Launch ezvpn (accept the UAC prompt). With nothing set up yet, the window
+   walks you through the two steps below.
+2. Create an **auth key** (*Auth keys* in the left pane, or *Manage keys…* in
    the profile editor): name it and leave the secret blank to generate a fresh
    ed25519 keypair — or paste an `ed25519-sec:…` secret from another device to
    reuse that identity. Copy the key's **public** half onto the server's
    `authorized_keys` file; the secret never leaves the machine except through the
    explicit copy action.
-3. **+** to add a profile: give it a name, the server's iroh node id, the auth key
-   to authenticate with (required), and optional split-tunnel routes
-   (`10.0.0.0/8`, `fd00::/8`, …).
-4. Select it and **Connect**. The status panel shows the assigned IP, gateway,
-   and routes once connected; **Connection path…** takes a snapshot of the live
-   iroh paths (the one in use marked active) and custom-relay health, as on
-   Apple and Android. A server that is
-   down, or a connection that drops, is retried by the core with backoff (1s
-   doubling to 60s) for as long as it takes; while that runs the panel says
-   how many attempts have failed, when the next one is due, and the last error.
-5. **Disconnect** tears down the tunnel and routes.
+3. *Add profile* (Ctrl+N): give it a name, the server's iroh node id, the auth
+   key to authenticate with (picked for you when there is only one), and
+   optional split-tunnel routes (`10.0.0.0/8`, `fd00::/8`, …). Custom relays and
+   reconnect limits sit under *Advanced*.
+4. Select it and **Connect**. The status card shows the state, uptime and
+   assigned IP; the *Connection* section adds the gateway and routes, and
+   **Connection path…** takes a snapshot of the live iroh paths (the one in use
+   marked active) and custom-relay health, as on Apple and Android. A server
+   that is down, or a connection that drops, is retried by the core with backoff
+   (1s doubling to 60s) for as long as it takes; while that runs the card says
+   how many attempts have failed and when the next one is due, with the last
+   error below it. Only one tunnel runs at a time: on another profile the
+   button reads **Switch here** and says which tunnel it will disconnect.
+5. **Disconnect** (or **Cancel** while still connecting) tears down the tunnel
+   and routes. The tray icon's menu lists every profile — pick one to connect
+   it — and its tooltip shows the current tunnel's state.
 
 Keys are shared across profiles: several profiles can authenticate with the same
 device identity. A profile keeps its own copy of the secret it was saved with, so

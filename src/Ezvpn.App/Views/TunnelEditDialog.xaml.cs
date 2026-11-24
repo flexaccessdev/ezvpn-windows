@@ -8,6 +8,7 @@ namespace Ezvpn.App.Views;
 public sealed partial class TunnelEditDialog : ContentDialog
 {
     private string[] _existingNames = Array.Empty<string>();
+    private bool _openedOnce;
 
     public TunnelEditDialog()
     {
@@ -21,6 +22,14 @@ public sealed partial class TunnelEditDialog : ContentDialog
     /// instance, so the half-filled form survives the round trip.
     /// </summary>
     public bool ManageKeysRequested { get; private set; }
+
+    /// <summary>
+    /// For a new profile: when exactly one key exists and none is picked yet,
+    /// pick it — including the first key just made through "Manage keys…".
+    /// Never set for an edit, where an empty picker means the profile's key was
+    /// deleted and must be chosen deliberately.
+    /// </summary>
+    public bool PreselectSingleKey { get; set; }
 
     /// <summary>Names to reject as duplicates (exclude the profile being edited).</summary>
     public void SetExistingNames(IEnumerable<string> names) => _existingNames = names.ToArray();
@@ -39,6 +48,14 @@ public sealed partial class TunnelEditDialog : ContentDialog
         var snapshot = keys.ToArray();
         KeyBox.ItemsSource = snapshot;
         KeyBox.SelectedItem = snapshot.FirstOrDefault(k => k.Id == selectedId);
+        if (KeyBox.SelectedItem is null && PreselectSingleKey && snapshot.Length == 1)
+        {
+            KeyBox.SelectedItem = snapshot[0];
+        }
+        // With no keys at all, say where one comes from instead of showing an
+        // empty picker.
+        NoKeysBar.IsOpen = snapshot.Length == 0;
+        KeyBox.IsEnabled = snapshot.Length > 0;
         // A key that was selected and is now gone (deleted from the key manager
         // this dialog just came back from) empties the picker, so explain it the
         // same way LoadFrom does rather than leaving it blank.
@@ -73,6 +90,11 @@ public sealed partial class TunnelEditDialog : ContentDialog
         AutoReconnectCheck.IsChecked = profile.AutoReconnect;
         MaxAttemptsBox.Value = profile.MaxReconnectAttempts ?? double.NaN;
         UpdateRelayTokenEnabled();
+        UpdateMaxAttemptsEnabled();
+        // Don't hide settings the profile actually uses behind a closed expander.
+        AdvancedExpander.IsExpanded = profile.RelayUrls.Count > 0
+            || !profile.AutoReconnect
+            || profile.MaxReconnectAttempts is not null;
 
         var keys = (IReadOnlyList<AuthKeyStore.Key>?)KeyBox.ItemsSource ?? Array.Empty<AuthKeyStore.Key>();
         KeyBox.SelectedItem = keys.FirstOrDefault(k => k.Id == profile.AuthKeyId);
@@ -113,6 +135,33 @@ public sealed partial class TunnelEditDialog : ContentDialog
         profile.MaxReconnectAttempts = ParseMaxAttempts(MaxAttemptsBox.Value);
     }
 
+    // Focus the first field the first time the dialog opens (not again when it
+    // re-shows after "Manage keys…", where the user was elsewhere in the form).
+    private void OnOpened(ContentDialog sender, ContentDialogOpenedEventArgs args)
+    {
+        if (_openedOnce)
+        {
+            return;
+        }
+        _openedOnce = true;
+        NameBox.Focus(FocusState.Programmatic);
+    }
+
+    // The attempt cap only means something while auto-reconnect is on.
+    private void OnAutoReconnectChanged(object sender, RoutedEventArgs args) =>
+        UpdateMaxAttemptsEnabled();
+
+    // IsChecked="True" in the XAML raises Checked during InitializeComponent,
+    // before MaxAttemptsBox (declared later) is assigned; it starts enabled,
+    // which matches the checked default, so there is nothing to do yet.
+    private void UpdateMaxAttemptsEnabled()
+    {
+        if (MaxAttemptsBox is not null)
+        {
+            MaxAttemptsBox.IsEnabled = AutoReconnectCheck.IsChecked ?? true;
+        }
+    }
+
     // Hide (rather than close) so the caller can re-show this instance with the
     // form intact once the keys dialog is done. Hide() reports None, which the
     // caller distinguishes from Cancel by ManageKeysRequested.
@@ -140,7 +189,7 @@ public sealed partial class TunnelEditDialog : ContentDialog
     {
         if (KeyBox.SelectedItem is AuthKeyStore.Key key)
         {
-            PublicKeyText.Text = $"Public key (put this on the server): {key.PublicKey}";
+            PublicKeyText.Text = $"Public key — must be in the server's authorized_keys: {key.PublicKey}";
             PublicKeyText.Visibility = Visibility.Visible;
         }
         else
@@ -189,33 +238,40 @@ public sealed partial class TunnelEditDialog : ContentDialog
 
     private void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
-        var error = Validate();
+        var (error, field) = Validate();
         if (error is not null)
         {
             ErrorBar.Message = error;
             ErrorBar.IsOpen = true;
             args.Cancel = true;
+            // The form scrolls; make sure the message is on screen, then put the
+            // cursor where the fix goes.
+            FormScroller.ChangeView(null, 0, null);
+            if (field == RelayBox)
+            {
+                AdvancedExpander.IsExpanded = true;
+            }
+            field?.Focus(FocusState.Programmatic);
         }
     }
 
-    private string? Validate()
+    /// <summary>The first problem with the form, and the field to fix it in.</summary>
+    private (string? Error, Control? Field) Validate()
     {
-        var nameError = TunnelValidation.ValidateName(NameBox.Text, _existingNames);
-        if (nameError is not null)
+        if (TunnelValidation.ValidateName(NameBox.Text, _existingNames) is { } nameError)
         {
-            return nameError;
+            return (nameError, NameBox);
         }
 
-        var nodeError = TunnelValidation.ValidateServerNodeId(NodeIdBox.Text);
-        if (nodeError is not null)
+        if (TunnelValidation.ValidateServerNodeId(NodeIdBox.Text) is { } nodeError)
         {
-            return nodeError;
+            return (nodeError, NodeIdBox);
         }
 
-        var keyError = TunnelValidation.ValidateAuthKeyId(SelectedKeyId);
-        if (keyError is not null)
+        if (TunnelValidation.ValidateAuthKeyId(SelectedKeyId) is { } keyError)
         {
-            return keyError;
+            // With no keys to pick, the way forward is the key manager.
+            return (keyError, KeyBox.IsEnabled ? (Control)KeyBox : ManageKeysButton);
         }
 
         // The relay token is custom-relay-only (the core rejects it otherwise).
@@ -226,23 +282,21 @@ public sealed partial class TunnelEditDialog : ContentDialog
         if (!string.IsNullOrWhiteSpace(RelayTokenBox.Password)
             && TunnelValidation.SplitList(RelayBox.Text).Count == 0)
         {
-            return "A relay token requires at least one relay URL.";
+            return ("A relay token requires at least one relay URL.", RelayBox);
         }
 
         var routes4 = TunnelValidation.SplitList(RoutesBox.Text);
-        var r4Error = TunnelValidation.ValidateRoutes(routes4, ipv6: false);
-        if (r4Error is not null)
+        if (TunnelValidation.ValidateRoutes(routes4, ipv6: false) is { } r4Error)
         {
-            return r4Error;
+            return (r4Error, RoutesBox);
         }
 
         var routes6 = TunnelValidation.SplitList(Routes6Box.Text);
-        var r6Error = TunnelValidation.ValidateRoutes(routes6, ipv6: true);
-        if (r6Error is not null)
+        if (TunnelValidation.ValidateRoutes(routes6, ipv6: true) is { } r6Error)
         {
-            return r6Error;
+            return (r6Error, Routes6Box);
         }
 
-        return null;
+        return (null, null);
     }
 }

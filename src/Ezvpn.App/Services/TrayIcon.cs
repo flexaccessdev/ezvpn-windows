@@ -18,6 +18,16 @@ namespace Ezvpn.App.Services;
 /// </summary>
 public sealed class TrayIcon : IDisposable
 {
+    /// <summary>One profile row in the tray menu.</summary>
+    /// <param name="Name">Display name.</param>
+    /// <param name="IsCurrent">Whether this is the tunnel that is up or coming up (checked).</param>
+    /// <param name="StateText">Shown after the name for the current tunnel, e.g. "Connecting…".</param>
+    /// <param name="Key">Opaque value handed back by <see cref="ProfileRequested"/>.</param>
+    public sealed record ProfileItem(string Name, bool IsCurrent, string? StateText, object Key);
+
+    /// <summary>What the context menu shows, captured when it opens.</summary>
+    public sealed record MenuState(IReadOnlyList<ProfileItem> Profiles, bool CanDisconnect);
+
     // Tray callback message (WM_APP range is reserved for app-private messages).
     private const uint WM_TRAYICON = 0x8000 + 1;
     private const uint WM_NULL = 0x0000;
@@ -50,6 +60,7 @@ public sealed class TrayIcon : IDisposable
 
     private const uint MF_STRING = 0x0;
     private const uint MF_GRAYED = 0x1;
+    private const uint MF_CHECKED = 0x8;
     private const uint MF_SEPARATOR = 0x800;
 
     private const uint TPM_RIGHTBUTTON = 0x2;
@@ -58,9 +69,13 @@ public sealed class TrayIcon : IDisposable
 
     // Menu command ids.
     private const uint IdShow = 1;
-    private const uint IdConnect = 2;
     private const uint IdDisconnect = 3;
     private const uint IdQuit = 4;
+    // Profile rows are IdProfileBase + their index in the menu snapshot.
+    private const uint IdProfileBase = 100;
+
+    // The shell's szTip holds 128 UTF-16 units including the terminator.
+    private const int MaxTooltipLength = 127;
 
     private readonly IntPtr _hwnd;
     private readonly WndProcDelegate _wndProc; // kept alive; the OS holds a raw pointer.
@@ -68,6 +83,9 @@ public sealed class TrayIcon : IDisposable
     private readonly string? _versionLabel;
 
     private NOTIFYICONDATAW _data;
+    // The tooltip the shell last accepted; a failed update leaves it unchanged so
+    // the same text is retried on the next call instead of being skipped.
+    private string? _appliedTooltip;
     private IntPtr _connectedIcon;
     private IntPtr _disconnectedIcon;
     private bool _connected;
@@ -79,15 +97,16 @@ public sealed class TrayIcon : IDisposable
     /// <summary>Menu "Show" (always bring the window up).</summary>
     public event Action? ShowRequested;
 
-    public event Action? ConnectRequested;
+    /// <summary>A profile row was picked; carries its <see cref="ProfileItem.Key"/>.</summary>
+    public event Action<object>? ProfileRequested;
     public event Action? DisconnectRequested;
     public event Action? QuitRequested;
 
     /// <summary>
-    /// Supplies whether Connect/Disconnect should be enabled when the menu opens
-    /// (mirrors the main window's buttons for the selected profile).
+    /// Supplies the profiles to list and whether Disconnect is available, read
+    /// each time the menu opens.
     /// </summary>
-    public Func<(bool CanConnect, bool CanDisconnect)>? MenuStateProvider { get; set; }
+    public Func<MenuState>? MenuStateProvider { get; set; }
 
     /// <param name="hwnd">The owning window's HWND (its WndProc is subclassed).</param>
     /// <param name="connectedIconPath">Path to the .ico shown while connected.</param>
@@ -142,6 +161,8 @@ public sealed class TrayIcon : IDisposable
             throw new InvalidOperationException("Shell_NotifyIcon(NIM_ADD) failed to register the tray icon.");
         }
 
+        _appliedTooltip = tooltip;
+
         // Opt into a defined callback contract instead of the implicit default.
         _data.uVersionOrTimeout = NOTIFYICON_VERSION;
         Shell_NotifyIcon(NIM_SETVERSION, ref _data);
@@ -182,13 +203,18 @@ public sealed class TrayIcon : IDisposable
     /// <summary>Update the hover tooltip (e.g. to reflect connection state).</summary>
     public void SetTooltip(string tooltip)
     {
-        if (_disposed)
+        if (tooltip.Length > MaxTooltipLength)
+        {
+            tooltip = tooltip[..(MaxTooltipLength - 1)] + "…";
+        }
+        // Called on every status poll; only bother the shell on a change.
+        if (_disposed || tooltip == _appliedTooltip)
         {
             return;
         }
         _data.szTip = tooltip;
         _data.uFlags = NIF_TIP;
-        Shell_NotifyIcon(NIM_MODIFY, ref _data);
+        _appliedTooltip = Shell_NotifyIcon(NIM_MODIFY, ref _data) ? tooltip : null;
     }
 
     private IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
@@ -213,7 +239,7 @@ public sealed class TrayIcon : IDisposable
 
     private void ShowContextMenu()
     {
-        var (canConnect, canDisconnect) = MenuStateProvider?.Invoke() ?? (false, false);
+        var state = MenuStateProvider?.Invoke() ?? new MenuState(Array.Empty<ProfileItem>(), false);
 
         IntPtr menu = CreatePopupMenu();
         try
@@ -226,8 +252,25 @@ public sealed class TrayIcon : IDisposable
             }
             AppendMenu(menu, MF_STRING, (UIntPtr)IdShow, "Show ezvpn");
             AppendMenu(menu, MF_SEPARATOR, UIntPtr.Zero, null);
-            AppendMenu(menu, MF_STRING | (canConnect ? 0 : MF_GRAYED), (UIntPtr)IdConnect, "Connect");
-            AppendMenu(menu, MF_STRING | (canDisconnect ? 0 : MF_GRAYED), (UIntPtr)IdDisconnect, "Disconnect");
+            // One row per profile: pick one to connect it (switching away from
+            // whatever is up); the current tunnel is checked and shows its state.
+            if (state.Profiles.Count == 0)
+            {
+                AppendMenu(menu, MF_STRING | MF_GRAYED, UIntPtr.Zero, "No profiles yet");
+            }
+            for (var i = 0; i < state.Profiles.Count; i++)
+            {
+                var p = state.Profiles[i];
+                // '&' marks a mnemonic in menu text; double it to show it literally.
+                var label = p.Name.Replace("&", "&&");
+                if (p.IsCurrent && !string.IsNullOrEmpty(p.StateText))
+                {
+                    label += "\t" + p.StateText;
+                }
+                AppendMenu(menu, MF_STRING | (p.IsCurrent ? MF_CHECKED : 0), (UIntPtr)(IdProfileBase + (uint)i), label);
+            }
+            AppendMenu(menu, MF_SEPARATOR, UIntPtr.Zero, null);
+            AppendMenu(menu, MF_STRING | (state.CanDisconnect ? 0 : MF_GRAYED), (UIntPtr)IdDisconnect, "Disconnect");
             AppendMenu(menu, MF_SEPARATOR, UIntPtr.Zero, null);
             AppendMenu(menu, MF_STRING, (UIntPtr)IdQuit, "Quit ezvpn");
 
@@ -242,9 +285,11 @@ public sealed class TrayIcon : IDisposable
             switch (cmd)
             {
                 case IdShow: ShowRequested?.Invoke(); break;
-                case IdConnect: ConnectRequested?.Invoke(); break;
                 case IdDisconnect: DisconnectRequested?.Invoke(); break;
                 case IdQuit: QuitRequested?.Invoke(); break;
+                case >= IdProfileBase when cmd - IdProfileBase < state.Profiles.Count:
+                    ProfileRequested?.Invoke(state.Profiles[(int)(cmd - IdProfileBase)].Key);
+                    break;
             }
         }
         finally
