@@ -83,6 +83,9 @@ public sealed class TrayIcon : IDisposable
     private readonly string? _versionLabel;
 
     private NOTIFYICONDATAW _data;
+    // The tooltip the shell last accepted; a failed update leaves it unchanged so
+    // the same text is retried on the next call instead of being skipped.
+    private string? _appliedTooltip;
     private IntPtr _connectedIcon;
     private IntPtr _disconnectedIcon;
     private bool _connected;
@@ -158,6 +161,8 @@ public sealed class TrayIcon : IDisposable
             throw new InvalidOperationException("Shell_NotifyIcon(NIM_ADD) failed to register the tray icon.");
         }
 
+        _appliedTooltip = tooltip;
+
         // Opt into a defined callback contract instead of the implicit default.
         _data.uVersionOrTimeout = NOTIFYICON_VERSION;
         Shell_NotifyIcon(NIM_SETVERSION, ref _data);
@@ -203,13 +208,13 @@ public sealed class TrayIcon : IDisposable
             tooltip = tooltip[..(MaxTooltipLength - 1)] + "…";
         }
         // Called on every status poll; only bother the shell on a change.
-        if (_disposed || tooltip == _data.szTip)
+        if (_disposed || tooltip == _appliedTooltip)
         {
             return;
         }
         _data.szTip = tooltip;
         _data.uFlags = NIF_TIP;
-        Shell_NotifyIcon(NIM_MODIFY, ref _data);
+        _appliedTooltip = Shell_NotifyIcon(NIM_MODIFY, ref _data) ? tooltip : null;
     }
 
     private IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)

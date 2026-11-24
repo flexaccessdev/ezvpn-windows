@@ -28,6 +28,14 @@ public sealed class TunnelsManager : ObservableObject
     // showing "Connecting…" forever.
     private TunnelViewModel? _pending;
 
+    // Completes once every native setup/teardown begun so far has finished:
+    // cancelled or superseded setups (including disposing the session they
+    // produced) and background teardowns. A new Start waits on it, so it never
+    // overlaps them — they share the wintun adapter, routes and the core's
+    // single-instance lock. Never faults (DisposeSession swallows failures and
+    // each setup completes its own gate in a finally).
+    private Task _nativeWork = Task.CompletedTask;
+
     // Bumped on every connect attempt and every disconnect. An in-flight
     // EzvpnSession.Start that returns after its generation is superseded is stale
     // and its session is discarded instead of installed.
@@ -273,6 +281,12 @@ public sealed class TunnelsManager : ObservableObject
         vm.SetConnecting();
         RefreshCurrentMarkers();
 
+        // Queue behind whatever native work is still in flight, and make the
+        // next attempt queue behind this one (including any stale disposal).
+        var previousNative = _nativeWork;
+        var thisSetup = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _nativeWork = Task.WhenAll(previousNative, thisSetup.Task);
+
         try
         {
             // Reading the credentials and building the config can fail too (an
@@ -282,12 +296,22 @@ public sealed class TunnelsManager : ObservableObject
             var relayToken = SecretStore.LoadRelayToken(vm.Profile.Id);
             var json = EzvpnConfig.Build(vm.Profile, authKey, relayToken);
 
+            await previousNative.ConfigureAwait(true);
+            if (generation != _generation)
+            {
+                // Superseded while waiting: whoever bumped the generation has
+                // already reset this view model; never start at all.
+                return;
+            }
+
             var session = await Task.Run(() => EzvpnSession.Start(json)).ConfigureAwait(true);
             if (generation != _generation)
             {
                 // Superseded while starting (disconnected or reconnected): the
-                // session we just got is orphaned — tear it down, don't install it.
-                session.Dispose();
+                // session we just got is orphaned — tear it down, don't install
+                // it. Off the UI thread; the next Start waits for it (thisSetup
+                // completes only after this).
+                await Task.Run(() => DisposeSession(session)).ConfigureAwait(true);
                 return;
             }
             _session = session;
@@ -307,6 +331,10 @@ public sealed class TunnelsManager : ObservableObject
                 vm.SetError(ex.Message);
                 RefreshCurrentMarkers();
             }
+        }
+        finally
+        {
+            thisSetup.SetResult();
         }
     }
 
@@ -339,7 +367,14 @@ public sealed class TunnelsManager : ObservableObject
     public Task DisconnectAsync()
     {
         var session = DetachActive();
-        return session is null ? Task.CompletedTask : Task.Run(() => DisposeSession(session));
+        if (session is null)
+        {
+            return Task.CompletedTask;
+        }
+        var teardown = Task.Run(() => DisposeSession(session));
+        // A reconnect right after this must not start until the teardown is done.
+        _nativeWork = Task.WhenAll(_nativeWork, teardown);
+        return teardown;
     }
 
     /// <summary>

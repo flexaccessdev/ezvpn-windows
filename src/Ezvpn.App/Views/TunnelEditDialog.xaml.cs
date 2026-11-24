@@ -151,8 +151,16 @@ public sealed partial class TunnelEditDialog : ContentDialog
     private void OnAutoReconnectChanged(object sender, RoutedEventArgs args) =>
         UpdateMaxAttemptsEnabled();
 
-    private void UpdateMaxAttemptsEnabled() =>
-        MaxAttemptsBox.IsEnabled = AutoReconnectCheck.IsChecked ?? true;
+    // IsChecked="True" in the XAML raises Checked during InitializeComponent,
+    // before MaxAttemptsBox (declared later) is assigned; it starts enabled,
+    // which matches the checked default, so there is nothing to do yet.
+    private void UpdateMaxAttemptsEnabled()
+    {
+        if (MaxAttemptsBox is not null)
+        {
+            MaxAttemptsBox.IsEnabled = AutoReconnectCheck.IsChecked ?? true;
+        }
+    }
 
     // Hide (rather than close) so the caller can re-show this instance with the
     // form intact once the keys dialog is done. Hide() reports None, which the
