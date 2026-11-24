@@ -21,6 +21,7 @@ public sealed class TunnelViewModel : ObservableObject
     private ClientStatus? _status;
     private string? _error;
     private string _authKeyName = "Not in the key list — pick one in Edit";
+    private string? _otherActiveName;
 
     public TunnelViewModel(TunnelProfile profile)
     {
@@ -46,20 +47,35 @@ public sealed class TunnelViewModel : ObservableObject
         set => SetProperty(ref _authKeyName, value);
     }
 
+    /// <summary>
+    /// The name of another profile that is connected or connecting, or null.
+    /// Only one tunnel runs at a time, so connecting this one switches away from
+    /// it — the UI says so instead of silently dropping the other tunnel.
+    /// </summary>
+    public string? OtherActiveName
+    {
+        get => _otherActiveName;
+        set
+        {
+            if (SetProperty(ref _otherActiveName, value))
+            {
+                OnPropertyChanged(nameof(ConnectButtonText));
+                OnPropertyChanged(nameof(StatusDetailText));
+            }
+        }
+    }
+
     public ConnectionState State
     {
         get => _state;
         private set
         {
-            if (SetProperty(ref _state, value))
+            if (!EqualityComparer<ConnectionState>.Default.Equals(_state, value))
             {
-                OnPropertyChanged(nameof(StateText));
-                OnPropertyChanged(nameof(IsConnected));
-                OnPropertyChanged(nameof(IsBusy));
-                OnPropertyChanged(nameof(CanConnect));
-                OnPropertyChanged(nameof(CanDisconnect));
-                // HasError depends on State as well as Error.
-                OnPropertyChanged(nameof(HasError));
+                _state = value;
+                // Most display fields (status line, button labels, which detail
+                // sections show) derive from the state.
+                OnAllPropertiesChanged();
             }
         }
     }
@@ -84,6 +100,7 @@ public sealed class TunnelViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(ErrorText));
                 OnPropertyChanged(nameof(HasError));
+                OnPropertyChanged(nameof(StatusDetailText));
             }
         }
     }
@@ -103,8 +120,58 @@ public sealed class TunnelViewModel : ObservableObject
         ConnectionState.Connecting when IsReconnecting => "Reconnecting…",
         ConnectionState.Connecting => "Connecting…",
         ConnectionState.Connected => "Connected",
-        ConnectionState.Error => "Error",
+        ConnectionState.Error => "Couldn't connect",
         _ => "Disconnected",
+    };
+
+    /// <summary>
+    /// The line under the big status word in the detail pane: uptime and
+    /// address while connected, retry progress while reconnecting.
+    /// </summary>
+    public string StatusDetailText => State switch
+    {
+        ConnectionState.Connected when AssignedIp != "—" => $"Up {ConnectedSinceText} · {AssignedIp}",
+        ConnectionState.Connected => $"Up {ConnectedSinceText}",
+        ConnectionState.Connecting when IsReconnecting => ReconnectText,
+        ConnectionState.Connecting => "Reaching the server…",
+        _ when OtherActiveName is { } other => $"Connecting here disconnects \u201c{other}\u201d.",
+        ConnectionState.Error => "Fix the problem below, then try again.",
+        _ => "Not connected",
+    };
+
+    /// <summary>"Connect", or "Switch here" when another profile's tunnel is up.</summary>
+    public string ConnectButtonText => OtherActiveName is null ? "Connect" : "Switch here";
+
+    /// <summary>The profile list's second line: the state, plus the address once connected.</summary>
+    public string ListStatusText =>
+        State == ConnectionState.Connected && _status?.AssignedIp is { Length: > 0 } ip
+            ? $"Connected · {ip}"
+            : StateText;
+
+    /// <summary>"Cancel" while still connecting (nothing is up yet), else "Disconnect".</summary>
+    public string DisconnectButtonText => State == ConnectionState.Connecting ? "Cancel" : "Disconnect";
+
+    // --- Profile summary (what is configured, independent of the session) ----
+
+    public string RelaysText => Profile.RelayUrls.Count > 0
+        ? string.Join(", ", Profile.RelayUrls)
+        : "Default iroh relays";
+
+    public string ConfiguredRoutesText
+    {
+        get
+        {
+            var all = Profile.Routes.Concat(Profile.Routes6).ToList();
+            return all.Count > 0 ? string.Join(", ", all) : "None — only the server's gateway";
+        }
+    }
+
+    public string ReconnectPolicyText => (Profile.AutoReconnect, Profile.MaxReconnectAttempts) switch
+    {
+        (false, _) => "Off",
+        (true, null) => "Automatic, no attempt limit",
+        (true, 1) => "Automatic, up to 1 attempt",
+        (true, var n) => $"Automatic, up to {n} attempts",
     };
 
     // --- Derived display fields (safe when Status is null) --------------------
@@ -157,6 +224,9 @@ public sealed class TunnelViewModel : ObservableObject
 
     /// <summary>The last attempt's error while reconnecting, or "" when unknown.</summary>
     public string ReconnectErrorText => IsReconnecting ? _status?.LastError ?? "" : "";
+
+    /// <summary>True while reconnecting and the core reported why the last attempt failed.</summary>
+    public bool HasReconnectError => ReconnectErrorText.Length > 0;
 
     public string ConnectedSinceText =>
         _status?.ConnectedSinceSecs is { } secs

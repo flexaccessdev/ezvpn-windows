@@ -22,6 +22,12 @@ public sealed class TunnelsManager : ObservableObject
     private EzvpnSession? _session;
     private TunnelViewModel? _active;
 
+    // The tunnel whose EzvpnSession.Start is still running (setup, before there
+    // is a session to poll). Tracked so Cancel works during setup and so a
+    // superseded attempt is put back to Disconnected instead of being left
+    // showing "Connecting…" forever.
+    private TunnelViewModel? _pending;
+
     // Bumped on every connect attempt and every disconnect. An in-flight
     // EzvpnSession.Start that returns after its generation is superseded is stale
     // and its session is discarded instead of installed.
@@ -54,6 +60,26 @@ public sealed class TunnelsManager : ObservableObject
     public AuthKeyStore AuthKeys { get; }
 
     public TunnelViewModel? Active => _active;
+
+    /// <summary>
+    /// The tunnel that is up or on its way up — the active one, or the one still
+    /// in setup. Connecting any other profile disconnects this one first.
+    /// </summary>
+    public TunnelViewModel? Current => _active ?? _pending;
+
+    /// <summary>
+    /// Tell every profile which other tunnel (if any) is current, so a profile's
+    /// Connect can say that it will switch away from it.
+    /// </summary>
+    private void RefreshCurrentMarkers()
+    {
+        var current = Current;
+        foreach (var vm in Tunnels)
+        {
+            vm.OtherActiveName = current is null || ReferenceEquals(current, vm) ? null : current.Name;
+        }
+        OnPropertyChanged(nameof(Current));
+    }
 
     // --- Profile CRUD ---------------------------------------------------------
 
@@ -89,6 +115,7 @@ public sealed class TunnelsManager : ObservableObject
         var vm = new TunnelViewModel(profile);
         vm.AuthKeyName = KeyNameFor(profile);
         Tunnels.Add(vm);
+        RefreshCurrentMarkers();
         return vm;
     }
 
@@ -125,12 +152,14 @@ public sealed class TunnelsManager : ObservableObject
 
         vm.AuthKeyName = KeyNameFor(vm.Profile);
         vm.NotifyProfileChanged();
+        // Other profiles name this one in their "switch from" hint.
+        RefreshCurrentMarkers();
     }
 
     /// <summary>Disconnect (if active), then delete the profile and its secrets.</summary>
     public void Delete(TunnelViewModel vm)
     {
-        if (ReferenceEquals(_active, vm))
+        if (ReferenceEquals(Current, vm))
         {
             DisconnectInternal();
         }
@@ -150,6 +179,7 @@ public sealed class TunnelsManager : ObservableObject
         }
 
         Tunnels.Remove(vm);
+        RefreshCurrentMarkers();
     }
 
     /// <summary>The current stored relay token for a profile, or null if none.</summary>
@@ -230,10 +260,18 @@ public sealed class TunnelsManager : ObservableObject
         }
 
         // Claim this attempt. A subsequent disconnect/reconnect bumps _generation,
-        // marking the in-flight Start below as stale.
+        // marking the in-flight Start below as stale. Another profile still in
+        // setup is superseded: it goes back to Disconnected (its session is
+        // discarded when its Start returns).
         var generation = ++_generation;
+        if (_pending is not null && !ReferenceEquals(_pending, vm))
+        {
+            _pending.SetDisconnected();
+        }
+        _pending = vm;
 
         vm.SetConnecting();
+        RefreshCurrentMarkers();
 
         try
         {
@@ -253,8 +291,10 @@ public sealed class TunnelsManager : ObservableObject
                 return;
             }
             _session = session;
+            _pending = null;
             _active = vm;
             OnPropertyChanged(nameof(Active));
+            RefreshCurrentMarkers();
             _timer.Start();
         }
         catch (Exception ex)
@@ -263,15 +303,20 @@ public sealed class TunnelsManager : ObservableObject
             // attempt's failure is irrelevant to whatever replaced it.
             if (generation == _generation)
             {
+                _pending = null;
                 vm.SetError(ex.Message);
+                RefreshCurrentMarkers();
             }
         }
     }
 
-    /// <summary>Disconnect the given tunnel if it is the active one.</summary>
+    /// <summary>
+    /// Disconnect the given tunnel if it is the current one — including while
+    /// it is still in setup, so Cancel works before the session exists.
+    /// </summary>
     public void Disconnect(TunnelViewModel vm)
     {
-        if (ReferenceEquals(_active, vm))
+        if (ReferenceEquals(Current, vm))
         {
             DisconnectInternal();
         }
@@ -322,6 +367,14 @@ public sealed class TunnelsManager : ObservableObject
         _active = null;
         OnPropertyChanged(nameof(Active));
         previous?.SetDisconnected();
+
+        // A tunnel still in setup is cancelled too: the generation bump above
+        // makes its Start discard the session when it returns.
+        var pending = _pending;
+        _pending = null;
+        pending?.SetDisconnected();
+
+        RefreshCurrentMarkers();
         return session;
     }
 

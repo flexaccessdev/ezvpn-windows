@@ -9,61 +9,84 @@
     PrimaryButtonText="Save"
     CloseButtonText="Cancel"
     DefaultButton="Primary"
+    Opened="OnOpened"
     PrimaryButtonClick="OnPrimaryButtonClick">
 
-    <ScrollViewer>
-        <StackPanel Spacing="12" MinWidth="420">
+    <ScrollViewer x:Name="FormScroller">
+        <StackPanel Spacing="14" MinWidth="460" Padding="0,0,12,0">
 
             <InfoBar x:Name="ErrorBar" IsOpen="False" Severity="Error"
-                     IsClosable="False" Title="Invalid profile" />
+                     IsClosable="False" Title="Can't save yet" />
 
             <TextBox x:Name="NameBox" Header="Name" PlaceholderText="e.g. work" />
 
             <TextBox x:Name="NodeIdBox" Header="Server node id"
-                     PlaceholderText="iroh endpoint id" TextWrapping="Wrap" AcceptsReturn="False" />
+                     PlaceholderText="The server's iroh endpoint id"
+                     Description="Printed by the server when it starts."
+                     FontFamily="Consolas"
+                     TextWrapping="Wrap" AcceptsReturn="False" />
 
-            <Grid ColumnSpacing="8" VerticalAlignment="Bottom">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <ComboBox x:Name="KeyBox" Grid.Column="0" Header="Auth key (required)"
-                          HorizontalAlignment="Stretch" DisplayMemberPath="Name"
-                          PlaceholderText="Choose a key…"
-                          SelectionChanged="OnKeySelectionChanged" />
-                <Button x:Name="ManageKeysButton" Grid.Column="1" Content="Manage keys…"
-                        VerticalAlignment="Bottom" Click="OnManageKeys" />
-            </Grid>
+            <StackPanel Spacing="6">
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="KeyBox" Grid.Column="0" Header="Auth key"
+                              HorizontalAlignment="Stretch" DisplayMemberPath="Name"
+                              PlaceholderText="Choose a key…"
+                              SelectionChanged="OnKeySelectionChanged" />
+                    <Button x:Name="ManageKeysButton" Grid.Column="1" Content="Manage keys…"
+                            VerticalAlignment="Bottom" Click="OnManageKeys" />
+                </Grid>
 
-            <TextBlock x:Name="PublicKeyText" TextWrapping="Wrap" FontFamily="Consolas"
-                       Visibility="Collapsed" IsTextSelectionEnabled="True"
-                       Style="{ThemeResource CaptionTextBlockStyle}"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <TextBlock x:Name="PublicKeyText" TextWrapping="Wrap" FontFamily="Consolas"
+                           Visibility="Collapsed" IsTextSelectionEnabled="True"
+                           Style="{ThemeResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+
+            <InfoBar x:Name="NoKeysBar" IsOpen="False" Severity="Informational" IsClosable="False"
+                     Title="No auth keys yet"
+                     Message="Use Manage keys… to create one, then add its public key to the server's authorized_keys file." />
 
             <InfoBar x:Name="MissingKeyBar" IsOpen="False" Severity="Warning" IsClosable="False"
                      Title="Auth key missing"
-                     Message="This profile doesn't name a key in the key list. Pick one before saving." />
+                     Message="The key this profile used was removed from the key list. Pick a key before saving." />
 
-            <TextBox x:Name="RelayBox" Header="Relay URLs (optional, comma-separated)"
-                     PlaceholderText="https://relay.example.com"
+            <TextBox x:Name="RoutesBox" Header="IPv4 routes"
                      TextWrapping="Wrap" AcceptsReturn="False"
-                     TextChanged="OnRelayBoxTextChanged" />
+                     PlaceholderText="10.0.0.0/8, 192.168.0.0/16"
+                     Description="CIDRs sent through the tunnel, comma-separated. The server's gateway is always reachable." />
 
-            <PasswordBox x:Name="RelayTokenBox" Header="Relay token (optional, custom relays only)"
-                         IsEnabled="False" />
-
-            <TextBox x:Name="RoutesBox" Header="IPv4 routes (CIDR, comma-separated)"
-                     TextWrapping="Wrap" AcceptsReturn="False"
-                     PlaceholderText="10.0.0.0/8, 192.168.0.0/16" />
-
-            <TextBox x:Name="Routes6Box" Header="IPv6 routes (CIDR, comma-separated)"
+            <TextBox x:Name="Routes6Box" Header="IPv6 routes"
                      TextWrapping="Wrap" AcceptsReturn="False"
                      PlaceholderText="fd00::/8" />
 
-            <NumberBox x:Name="MaxAttemptsBox" Header="Max reconnect attempts (blank = unlimited)"
-                       SpinButtonPlacementMode="Compact" Minimum="1" />
+            <!-- Rarely changed settings, folded away so a new profile is three
+                 fields. Opens itself when a profile already uses any of them. -->
+            <Expander x:Name="AdvancedExpander" Header="Advanced"
+                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="14">
+                    <TextBox x:Name="RelayBox" Header="Custom relay URLs"
+                             PlaceholderText="https://relay.example.com"
+                             Description="Comma-separated. Leave blank to use the default iroh relays."
+                             TextWrapping="Wrap" AcceptsReturn="False"
+                             TextChanged="OnRelayBoxTextChanged" />
 
-            <CheckBox x:Name="AutoReconnectCheck" Content="Reconnect automatically" IsChecked="True" />
+                    <PasswordBox x:Name="RelayTokenBox" Header="Relay token"
+                                 PlaceholderText="Only with custom relays"
+                                 IsEnabled="False" />
+
+                    <CheckBox x:Name="AutoReconnectCheck" Content="Reconnect automatically when the connection drops"
+                              IsChecked="True"
+                              Checked="OnAutoReconnectChanged" Unchecked="OnAutoReconnectChanged" />
+
+                    <NumberBox x:Name="MaxAttemptsBox" Header="Give up after this many attempts"
+                               PlaceholderText="No limit"
+                               SpinButtonPlacementMode="Compact" Minimum="1" />
+                </StackPanel>
+            </Expander>
 
         </StackPanel>
     </ScrollViewer>

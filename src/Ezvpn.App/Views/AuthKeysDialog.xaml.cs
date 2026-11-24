@@ -155,9 +155,9 @@ public sealed partial class AuthKeysDialog : ContentDialog
 
     private void OnCopyPublicKey(object sender, RoutedEventArgs args)
     {
-        if (KeyFor(sender) is { } key)
+        if (KeyFor(sender) is { } key && CopyToClipboard(key.PublicKey))
         {
-            CopyToClipboard(key.PublicKey);
+            CopyFeedback.Flash(sender as Button);
         }
     }
 
@@ -250,19 +250,22 @@ public sealed partial class AuthKeysDialog : ContentDialog
         }
     }
 
-    private void CopyToClipboard(string value)
+    /// <summary>Copy to the clipboard; false (with the error shown) if it failed.</summary>
+    private bool CopyToClipboard(string value)
     {
         try
         {
             var package = new DataPackage { RequestedOperation = DataPackageOperation.Copy };
             package.SetText(value);
             Clipboard.SetContent(package);
+            return true;
         }
         catch (Exception ex)
         {
             // The clipboard can be held by another process; that is not worth
             // taking the dialog down for.
             ShowError($"Couldn't copy to the clipboard: {ex.Message}");
+            return false;
         }
     }
 
