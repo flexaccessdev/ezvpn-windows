@@ -9,7 +9,11 @@ The Rust core + C FFI live in the `../ezvpn` repo (`src/ffi_windows.rs`,
 - Strict no backward compatibility (0.0.x) or legacy code paths
 - The transport is iroh (Rust-only) — never reimplement the protocol in .NET.
   The app P/Invokes `ezvpn.dll` (`ezvpn_start` / `ezvpn_status` /
-  `ezvpn_conn_path` / `ezvpn_stop`). `ezvpn_status` is polled every second;
+  `ezvpn_conn_path` / `ezvpn_stop`). State changes come from `ezvpn_start`'s
+  `on_event` callback (`CONNECTED`, `RECONNECTING`, final `ENDED` — the core
+  stopped trying, shown as "Stopped" with the reason); it runs on a library
+  thread and only posts to the UI dispatcher. `ezvpn_status` is polled every
+  second for the live details (uptime, the retry countdown);
   `ezvpn_conn_path` (paths + custom-relay `/healthz`) runs only on demand from
   the "Connection path…" dialog, as on Apple and Android — never poll it.
 - Single elevated process: app manifest requests Administrator; the tunnel runs

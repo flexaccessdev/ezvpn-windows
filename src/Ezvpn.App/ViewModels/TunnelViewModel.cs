@@ -8,6 +8,13 @@ public enum ConnectionState
     Connecting,
     Connected,
     Error,
+
+    /// <summary>
+    /// The tunnel was running but the core stopped trying for good (retries
+    /// used up, a non-recoverable error, or a lost session with auto-reconnect
+    /// off). <see cref="TunnelViewModel.Error"/> holds the reason.
+    /// </summary>
+    Stopped,
 }
 
 /// <summary>
@@ -109,7 +116,7 @@ public sealed class TunnelViewModel : ObservableObject
 
     public bool IsBusy => State == ConnectionState.Connecting;
 
-    public bool CanConnect => State is ConnectionState.Disconnected or ConnectionState.Error;
+    public bool CanConnect => State is ConnectionState.Disconnected or ConnectionState.Error or ConnectionState.Stopped;
 
     public bool CanDisconnect => State is ConnectionState.Connected or ConnectionState.Connecting;
 
@@ -121,6 +128,7 @@ public sealed class TunnelViewModel : ObservableObject
         ConnectionState.Connecting => "Connecting…",
         ConnectionState.Connected => "Connected",
         ConnectionState.Error => "Couldn't connect",
+        ConnectionState.Stopped => "Stopped",
         _ => "Disconnected",
     };
 
@@ -136,6 +144,7 @@ public sealed class TunnelViewModel : ObservableObject
         ConnectionState.Connecting => "Reaching the server…",
         _ when OtherActiveName is { } other => $"Connecting here disconnects \u201c{other}\u201d.",
         ConnectionState.Error => "Fix the problem below, then try again.",
+        ConnectionState.Stopped => "Stopped trying to connect. Connect to try again.",
         _ => "Not connected",
     };
 
@@ -190,7 +199,8 @@ public sealed class TunnelViewModel : ObservableObject
 
     public string ErrorText => Error ?? "";
 
-    public bool HasError => State == ConnectionState.Error && !string.IsNullOrEmpty(Error);
+    public bool HasError =>
+        State is ConnectionState.Error or ConnectionState.Stopped && !string.IsNullOrEmpty(Error);
 
     /// <summary>
     /// True while the core's reconnect loop is between attempts after at least
@@ -257,6 +267,17 @@ public sealed class TunnelViewModel : ObservableObject
         Error = message;
         Status = null;
         State = ConnectionState.Error;
+    }
+
+    /// <summary>
+    /// The core's run loop ended on its own; <paramref name="reason"/> is why
+    /// (e.g. "Gave up after 3 reconnect attempt(s): …"), or null if it gave none.
+    /// </summary>
+    public void SetStopped(string? reason)
+    {
+        Error = reason ?? "The tunnel stopped.";
+        Status = null;
+        State = ConnectionState.Stopped;
     }
 
     public void SetDisconnected()

@@ -48,7 +48,7 @@ public sealed partial class NullToVisibilityConverter : IValueConverter
 
 /// <summary>
 /// The status colour for a <see cref="ConnectionState"/>: green connected, amber
-/// connecting/reconnecting, red error, gray disconnected — the same signal the
+/// connecting/reconnecting, red error or stopped, gray disconnected — the same signal the
 /// tray icon gives with teal/gray, readable at a glance in the profile list.
 /// </summary>
 public sealed partial class StateToBrushConverter : IValueConverter
@@ -59,7 +59,7 @@ public sealed partial class StateToBrushConverter : IValueConverter
         {
             ConnectionState.Connected => "SystemFillColorSuccessBrush",
             ConnectionState.Connecting => "SystemFillColorCautionBrush",
-            ConnectionState.Error => "SystemFillColorCriticalBrush",
+            ConnectionState.Error or ConnectionState.Stopped => "SystemFillColorCriticalBrush",
             _ => "ControlStrongFillColorDefaultBrush",
         };
         return (Brush)Application.Current.Resources[key];
