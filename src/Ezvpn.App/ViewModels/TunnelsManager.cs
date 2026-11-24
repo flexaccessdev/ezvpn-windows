@@ -9,7 +9,9 @@ namespace Ezvpn.App.ViewModels;
 /// <summary>
 /// Owns the profile list and the single active tunnel session. Only one tunnel
 /// may be connected at a time (mirroring the Apple app and the Rust
-/// single-instance lock). Polls the active session's status on a timer.
+/// single-instance lock). Reacts to the active session's events (connected,
+/// reconnecting, ended) and polls its status on a timer for the live details
+/// the events don't carry (uptime, the next retry's countdown).
 /// </summary>
 public sealed class TunnelsManager : ObservableObject
 {
@@ -304,7 +306,12 @@ public sealed class TunnelsManager : ObservableObject
                 return;
             }
 
-            var session = await Task.Run(() => EzvpnSession.Start(json)).ConfigureAwait(true);
+            // Events arrive on a library thread; hop to the UI thread without
+            // waiting (the core holds a lock while the handler runs, and
+            // ezvpn_stop waits for it).
+            var session = await Task.Run(() => EzvpnSession.Start(
+                json,
+                ev => _dispatcher.TryEnqueue(() => OnTunnelEvent(generation, ev)))).ConfigureAwait(true);
             if (generation != _generation)
             {
                 // Superseded while starting (disconnected or reconnected): the
@@ -320,6 +327,9 @@ public sealed class TunnelsManager : ObservableObject
             OnPropertyChanged(nameof(Active));
             RefreshCurrentMarkers();
             _timer.Start();
+            // An event that arrived before the session was installed was
+            // dropped (no session to act on yet); catch up on the state now.
+            Poll();
         }
         catch (Exception ex)
         {
@@ -444,6 +454,27 @@ public sealed class TunnelsManager : ObservableObject
         return await Task.Run(session.TryGetConnPath).ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// React to the session's events (on the UI thread). Ignored unless the
+    /// session of <paramref name="generation"/> is still the installed one.
+    /// </summary>
+    private void OnTunnelEvent(int generation, EzvpnEvent ev)
+    {
+        if (generation != _generation || _session is null)
+        {
+            return;
+        }
+        if (ev.Kind == EzvpnEventKind.Ended)
+        {
+            OnRunEnded(ev.Message);
+        }
+        else
+        {
+            // Connected / reconnecting: refresh at once rather than at the next tick.
+            Poll();
+        }
+    }
+
     private void Poll()
     {
         if (_session is null || _active is null)
@@ -451,6 +482,29 @@ public sealed class TunnelsManager : ObservableObject
             return;
         }
         var status = _session.TryGetStatus();
+        if (status is { IsStopped: true })
+        {
+            // Normally the Ended event got here first; this covers an Ended
+            // that arrived before the session was installed.
+            OnRunEnded(status.StopReason);
+            return;
+        }
         _active.ApplyStatus(status);
+    }
+
+    /// <summary>
+    /// The core stopped trying for good. It has already torn the tunnel down;
+    /// free the handle like a disconnect, but leave the tunnel showing why it
+    /// stopped instead of "Disconnected".
+    /// </summary>
+    private void OnRunEnded(string? reason)
+    {
+        var vm = _active;
+        if (vm is null)
+        {
+            return;
+        }
+        _ = DisconnectAsync();
+        vm.SetStopped(reason);
     }
 }

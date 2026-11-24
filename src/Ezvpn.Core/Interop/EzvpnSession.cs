@@ -1,3 +1,6 @@
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
 namespace Ezvpn.Core.Interop;
 
 /// <summary>Thrown when <c>ezvpn_start</c> fails during setup.</summary>
@@ -7,6 +10,25 @@ public sealed class EzvpnException : Exception
     {
     }
 }
+
+/// <summary>A state change reported by the running tunnel (<c>ezvpn_start</c>'s <c>on_event</c>).</summary>
+public enum EzvpnEventKind
+{
+    /// <summary>An attempt failed or the session was lost; the core tries again.</summary>
+    Reconnecting,
+
+    /// <summary>The tunnel is up (first connection or a reconnect).</summary>
+    Connected,
+
+    /// <summary>Final: the core's run loop ended and will not try again.</summary>
+    Ended,
+}
+
+/// <param name="Kind">What happened.</param>
+/// <param name="Message">The error (<see cref="EzvpnEventKind.Reconnecting"/>), the
+/// reason (<see cref="EzvpnEventKind.Ended"/>, null for an end without an error),
+/// or null.</param>
+public sealed record EzvpnEvent(EzvpnEventKind Kind, string? Message);
 
 /// <summary>
 /// Managed wrapper over the <c>ezvpn.dll</c> C FFI. A live session owns the
@@ -64,20 +86,55 @@ public sealed class EzvpnSession : IDisposable
 
     /// <summary>
     /// Start the client from an <c>ezvpn_start</c> config JSON string (build it
-    /// with <see cref="EzvpnConfig.Build"/>). Returns once *started*; poll
-    /// <see cref="TryGetStatus"/> for the connected state. Throws
+    /// with <see cref="EzvpnConfig.Build"/>). Returns once *started*; the
+    /// tunnel's state changes then arrive through <paramref name="onEvent"/>,
+    /// and <see cref="TryGetStatus"/> gives the live details. Throws
     /// <see cref="EzvpnException"/> on a setup failure.
     /// </summary>
-    public static EzvpnSession Start(string configJson)
+    /// <param name="onEvent">Called on a library thread — possibly before this
+    /// method returns — until <see cref="Dispose"/>, which waits out a call in
+    /// progress. It must return quickly and must never wait on a thread that
+    /// may be disposing this session (post to the UI thread asynchronously).
+    /// Exceptions it throws are swallowed.</param>
+    public static unsafe EzvpnSession Start(string configJson, Action<EzvpnEvent> onEvent)
     {
         var err = new byte[4096];
-        var ptr = EzvpnNative.Start(configJson, err, (nuint)err.Length);
+        var context = GCHandle.Alloc(onEvent);
+        var ptr = EzvpnNative.Start(configJson, &OnNativeEvent, GCHandle.ToIntPtr(context), err, (nuint)err.Length);
         if (ptr == IntPtr.Zero)
         {
+            // No handle, so no event can follow: free the context now.
+            context.Free();
             var msg = EzvpnNative.ReadCString(err);
             throw new EzvpnException(msg.Length > 0 ? msg : "ezvpn_start failed");
         }
-        return new EzvpnSession(EzvpnSafeHandle.FromPtr(ptr));
+        return new EzvpnSession(EzvpnSafeHandle.FromPtr(ptr, context));
+    }
+
+    /// <summary>The <c>on_event</c> trampoline: decode and hand to the session's handler.</summary>
+    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    private static void OnNativeEvent(IntPtr ctx, int code, IntPtr message)
+    {
+        // An exception must never unwind into the native caller.
+        try
+        {
+            var kind = code switch
+            {
+                EzvpnNative.EventReconnecting => EzvpnEventKind.Reconnecting,
+                EzvpnNative.EventConnected => EzvpnEventKind.Connected,
+                EzvpnNative.EventEnded => EzvpnEventKind.Ended,
+                _ => (EzvpnEventKind?)null,
+            };
+            if (kind is null || GCHandle.FromIntPtr(ctx).Target is not Action<EzvpnEvent> handler)
+            {
+                return;
+            }
+            handler(new EzvpnEvent(kind.Value, Marshal.PtrToStringUTF8(message)));
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"ezvpn event handler failed: {ex}");
+        }
     }
 
     /// <summary>

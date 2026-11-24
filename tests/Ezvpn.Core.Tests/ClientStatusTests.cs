@@ -62,6 +62,31 @@ public class ClientStatusTests
         Assert.Equal(0ul, mid.NextAttemptSecs);
     }
 
+    // The core's run loop ended for good: "stopped" with the reason, never read
+    // as a reconnect still on its way.
+    [Fact]
+    public void Parse_StoppedReportsReason()
+    {
+        const string json = """
+        {"role":"client","instance":"work","state":"stopped","mode":"none",
+         "failed_attempts":4,"next_attempt_secs":null,
+         "last_error":"Signaling error: Failed to connect to server",
+         "stop_reason":"Gave up after 3 reconnect attempt(s): Signaling error: Failed to connect to server"}
+        """;
+        var status = ClientStatus.Parse(json);
+        Assert.NotNull(status);
+        Assert.True(status!.IsStopped);
+        Assert.False(status.IsConnected);
+        Assert.Null(status.NextAttemptSecs);
+        Assert.Equal(
+            "Gave up after 3 reconnect attempt(s): Signaling error: Failed to connect to server",
+            status.StopReason);
+
+        var running = ClientStatus.Parse("""{"state":"disconnected","failed_attempts":1}""");
+        Assert.False(running!.IsStopped);
+        Assert.Null(running.StopReason);
+    }
+
     [Fact]
     public void Parse_Disconnected()
     {

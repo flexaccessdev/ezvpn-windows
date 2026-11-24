@@ -25,8 +25,9 @@ and installs routes itself. So:
 
 ```
 Ezvpn.App (WinUI 3, elevated)
-  profiles ──▶ ezvpn_start(json) ──▶ ezvpn.dll ──▶ iroh + wintun + routes
-  poll     ──▶ ezvpn_status()
+  profiles ──▶ ezvpn_start(json, on_event) ──▶ ezvpn.dll ──▶ iroh + wintun + routes
+  events   ◀── on_event(CONNECTED | RECONNECTING | ENDED)
+  poll     ──▶ ezvpn_status()   (uptime, retry countdown)
   on demand──▶ ezvpn_conn_path()   ("Connection path…")
   stop     ──▶ ezvpn_stop()
 ```

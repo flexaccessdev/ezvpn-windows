@@ -28,7 +28,10 @@ public sealed class ClientStatus
 
     // --- Consumed fields (add an accessor here to surface a new key) ----------
 
-    /// <summary>"connected" once the handshake succeeds, otherwise "disconnected".</summary>
+    /// <summary>
+    /// "connected" once the handshake succeeds; "disconnected" while connecting
+    /// or reconnecting; "stopped" once the core's run loop has ended for good.
+    /// </summary>
     public string State => Str("state") ?? "disconnected";
 
     /// <summary>"ipv4", "ipv6", "dual-stack", or "none".</summary>
@@ -67,7 +70,19 @@ public sealed class ClientStatus
     /// <summary>The error that ended the last failed attempt, while reconnecting.</summary>
     public string? LastError => Str("last_error");
 
+    /// <summary>
+    /// Why the run loop ended, once <see cref="IsStopped"/> (the same text as
+    /// the Ended event); null for an end without an error.
+    /// </summary>
+    public string? StopReason => Str("stop_reason");
+
     public bool IsConnected => string.Equals(State, "connected", StringComparison.Ordinal);
+
+    /// <summary>
+    /// True once the core has stopped trying: retries used up, a non-recoverable
+    /// error, or a lost session with auto-reconnect off.
+    /// </summary>
+    public bool IsStopped => string.Equals(State, "stopped", StringComparison.Ordinal);
 
     // --- Parsing & typed key accessors ----------------------------------------
 

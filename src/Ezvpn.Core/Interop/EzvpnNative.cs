@@ -33,13 +33,29 @@ internal static partial class EzvpnNative
     [LibraryImport(Dll, EntryPoint = "ezvpn_client_public_key", StringMarshalling = StringMarshalling.Utf8)]
     internal static partial int ClientPublicKey(string secretKey, byte[] outBuf, nuint outLen);
 
+    /// <summary><c>on_event</c> code: an attempt failed or the session was lost; retrying. Message: the error.</summary>
+    internal const int EventReconnecting = 1;
+
+    /// <summary><c>on_event</c> code: the tunnel is up (first connection or a reconnect).</summary>
+    internal const int EventConnected = 2;
+
+    /// <summary><c>on_event</c> code (final): the run loop ended and will not try again. Message: the reason, or null.</summary>
+    internal const int EventEnded = 3;
+
     /// <summary>
     /// Start the client. Returns an opaque handle (or <see cref="IntPtr.Zero"/>
     /// on setup failure, in which case <paramref name="outBuf"/> holds a
-    /// NUL-terminated UTF-8 error message).
+    /// NUL-terminated UTF-8 error message). <paramref name="onEvent"/> is called
+    /// from library threads with <paramref name="ctx"/> and an <c>Event*</c> code
+    /// until <c>ezvpn_stop</c>, which waits out a call in progress.
     /// </summary>
     [LibraryImport(Dll, EntryPoint = "ezvpn_start", StringMarshalling = StringMarshalling.Utf8)]
-    internal static partial IntPtr Start(string configJson, byte[] outBuf, nuint outLen);
+    internal static unsafe partial IntPtr Start(
+        string configJson,
+        delegate* unmanaged[Cdecl]<IntPtr, int, IntPtr, void> onEvent,
+        IntPtr ctx,
+        byte[] outBuf,
+        nuint outLen);
 
     /// <summary>
     /// Write the status JSON into <paramref name="outBuf"/>. Returns 1 (full), 0
