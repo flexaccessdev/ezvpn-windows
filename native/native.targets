@@ -20,6 +20,14 @@
          wintun.dll — the WireGuard wintun adapter (amd64), downloaded from the
                       official build at wintun.net, verified by SHA256. arm64 is
                       out of scope for this project.
+
+       Each DLL is staged in a folder named after its pin (native\ezvpn-<tag>-<sha>\,
+       native\wintun-<version>\), never at a fixed path: re-pinning points the
+       build at a folder that does not exist yet, so it downloads afresh instead of
+       reusing a DLL staged under another pin (building main, then publishing a
+       branch with a newer pin, from the same checkout would otherwise ship the old
+       core while the app reports the new one). Switching back reuses the folder
+       already there. Offline with a new pin, publish fails rather than ship a stale DLL.
        ========================================================================== -->
 
   <PropertyGroup>
@@ -36,6 +44,11 @@
     <EzvpnCoreVersion>$(EzvpnReleaseTag.TrimStart('v'))</EzvpnCoreVersion>
     <EzvpnDllZipUrl>https://github.com/flexaccessdev/ezvpn/releases/download/$(EzvpnReleaseTag)/ezvpn-windows.dll.zip</EzvpnDllZipUrl>
     <EzvpnDllZipSha256>211eef8f7224b60d2a8f3b06fc9a6287d1f46a5c5305cae878087b4fa9b20f82</EzvpnDllZipSha256>
+    <!-- The pin's identity: the checksum too, not just the tag, so a re-pin of the
+         same tag to a re-uploaded asset (bump-dll.ps1 rewrites both) also stages afresh. -->
+    <_EzvpnPinId>$(EzvpnReleaseTag)</_EzvpnPinId>
+    <_EzvpnPinId Condition="'$(EzvpnDllZipSha256)' != ''">$(EzvpnReleaseTag)-$(EzvpnDllZipSha256.Substring(0, 12).ToLowerInvariant())</_EzvpnPinId>
+    <EzvpnStageDir>$(NativeDir)ezvpn-$(_EzvpnPinId)\</EzvpnStageDir>
 
     <!-- Local core build used when EZVPN_LOCAL_DLL=1 (see ..\ezvpn\build-windows.ps1).
          In that mode ezvpn.dll is consumed straight from the sibling dist — it is
@@ -46,21 +59,22 @@
     <WintunVersion>0.14.1</WintunVersion>
     <WintunZipUrl>https://www.wintun.net/builds/wintun-$(WintunVersion).zip</WintunZipUrl>
     <WintunZipSha256>07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51</WintunZipSha256>
+    <WintunStageDir>$(NativeDir)wintun-$(WintunVersion)\</WintunStageDir>
 
     <!-- Resolved copy sources. EZVPN_LOCAL_DLL=1 points ezvpn.dll at the sibling
-         dist directly; otherwise the staged (downloaded) copy in native\ is used.
-         wintun.dll always comes from native\ (downloaded / pre-staged in CI). -->
+         dist directly; otherwise the copy staged for the current pin is used.
+         wintun.dll always comes from its pin's folder under native\. -->
     <EzvpnDllSource Condition="'$(EZVPN_LOCAL_DLL)' == '1'">$(EzvpnLocalDistDir)\ezvpn.dll</EzvpnDllSource>
-    <EzvpnDllSource Condition="'$(EzvpnDllSource)' == ''">$(NativeDir)ezvpn.dll</EzvpnDllSource>
-    <WintunDllSource>$(NativeDir)wintun.dll</WintunDllSource>
+    <EzvpnDllSource Condition="'$(EzvpnDllSource)' == ''">$(EzvpnStageDir)ezvpn.dll</EzvpnDllSource>
+    <WintunDllSource>$(WintunStageDir)wintun.dll</WintunDllSource>
   </PropertyGroup>
 
-  <!-- Download ezvpn.dll into native\ from the pinned release. Skipped entirely in
-       local mode (EZVPN_LOCAL_DLL=1 reads the sibling dist directly) and when
-       native\ezvpn.dll is already present (e.g. pre-staged in CI). -->
-  <Target Name="_StageEzvpnDll" Condition="'$(EZVPN_LOCAL_DLL)' != '1' And !Exists('$(NativeDir)ezvpn.dll')">
+  <!-- Download ezvpn.dll into the current pin's folder from the pinned release.
+       Skipped entirely in local mode (EZVPN_LOCAL_DLL=1 reads the sibling dist
+       directly) and when that pin's DLL is already staged. -->
+  <Target Name="_StageEzvpnDll" Condition="'$(EZVPN_LOCAL_DLL)' != '1' And !Exists('$(EzvpnStageDir)ezvpn.dll')">
     <PropertyGroup>
-      <NativeCacheDir>$(IntermediateOutputPath)native\</NativeCacheDir>
+      <NativeCacheDir>$(IntermediateOutputPath)native\ezvpn-$(_EzvpnPinId)\</NativeCacheDir>
       <_EzvpnZip>$(NativeCacheDir)ezvpn-windows.dll.zip</_EzvpnZip>
       <_DownloadEzvpn Condition="'$(EzvpnDllZipSha256)' != ''">true</_DownloadEzvpn>
     </PropertyGroup>
@@ -81,17 +95,17 @@
     <Error Condition="'$(_DownloadEzvpn)' == 'true' And Exists('$(_EzvpnZip)') And '$(_EzvpnHash.ToLowerInvariant())' != '$(EzvpnDllZipSha256.ToLowerInvariant())'"
            Text="ezvpn-windows.dll.zip SHA256 mismatch: expected $(EzvpnDllZipSha256), got $(_EzvpnHash). URL: $(EzvpnDllZipUrl)" />
     <Unzip Condition="'$(_DownloadEzvpn)' == 'true' And Exists('$(_EzvpnZip)')" SourceFiles="$(_EzvpnZip)" DestinationFolder="$(NativeCacheDir)ezvpn" OverwriteReadOnlyFiles="true" />
-    <Copy Condition="'$(_DownloadEzvpn)' == 'true' And Exists('$(NativeCacheDir)ezvpn\ezvpn.dll')" SourceFiles="$(NativeCacheDir)ezvpn\ezvpn.dll" DestinationFolder="$(NativeDir)" SkipUnchangedFiles="true" />
+    <Copy Condition="'$(_DownloadEzvpn)' == 'true' And Exists('$(NativeCacheDir)ezvpn\ezvpn.dll')" SourceFiles="$(NativeCacheDir)ezvpn\ezvpn.dll" DestinationFolder="$(EzvpnStageDir)" />
 
     <!-- No source available: warn but don't fail — the DLL is runtime-only. -->
     <Warning Condition="'$(EzvpnDllZipSha256)' == ''"
              Text="No pinned ezvpn.dll checksum. Run scripts\bump-dll.ps1 to pin an ezvpn release, or build with EZVPN_LOCAL_DLL=1. The app cannot run without ezvpn.dll." />
   </Target>
 
-  <!-- Stage wintun.dll (amd64) into native\ from the official wintun.net build. -->
-  <Target Name="_StageWintunDll" Condition="!Exists('$(NativeDir)wintun.dll')">
+  <!-- Stage wintun.dll (amd64) into its version's folder from the official wintun.net build. -->
+  <Target Name="_StageWintunDll" Condition="!Exists('$(WintunStageDir)wintun.dll')">
     <PropertyGroup>
-      <NativeCacheDir>$(IntermediateOutputPath)native\</NativeCacheDir>
+      <NativeCacheDir>$(IntermediateOutputPath)native\wintun-$(WintunVersion)\</NativeCacheDir>
       <_WintunZip>$(NativeCacheDir)wintun-$(WintunVersion).zip</_WintunZip>
     </PropertyGroup>
     <!-- Runtime-only dependency: an offline/failed download must not break an
@@ -108,7 +122,7 @@
     <Error Condition="Exists('$(_WintunZip)') And '$(_WintunHash.ToLowerInvariant())' != '$(WintunZipSha256.ToLowerInvariant())'"
            Text="wintun zip SHA256 mismatch: expected $(WintunZipSha256), got $(_WintunHash). URL: $(WintunZipUrl)" />
     <Unzip Condition="Exists('$(_WintunZip)')" SourceFiles="$(_WintunZip)" DestinationFolder="$(NativeCacheDir)wintun" OverwriteReadOnlyFiles="true" />
-    <Copy Condition="Exists('$(NativeCacheDir)wintun\wintun\bin\amd64\wintun.dll')" SourceFiles="$(NativeCacheDir)wintun\wintun\bin\amd64\wintun.dll" DestinationFolder="$(NativeDir)" SkipUnchangedFiles="true" />
+    <Copy Condition="Exists('$(NativeCacheDir)wintun\wintun\bin\amd64\wintun.dll')" SourceFiles="$(NativeCacheDir)wintun\wintun\bin\amd64\wintun.dll" DestinationFolder="$(WintunStageDir)" />
   </Target>
 
   <!-- Copy the staged DLLs into the build output (for run/debug) and the publish
