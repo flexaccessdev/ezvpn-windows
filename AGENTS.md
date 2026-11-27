@@ -16,6 +16,10 @@ The Rust core + C FFI live in the `../ezvpn` repo (`src/ffi_windows.rs`,
   second for the live details (uptime, the retry countdown);
   `ezvpn_conn_path` (paths + custom-relay `/healthz`) runs only on demand from
   the "Connection path…" dialog, as on Apple and Android — never poll it.
+- `Services\AppLog` points the process's stderr (where `ezvpn_init_logging`
+  writes) at a pipe and copies each line into `%ProgramData%\ezvpn\ezvpn.log`,
+  stamped to the millisecond on arrival, beside the app's own connect/stop
+  timings. Read it first when a connect is slow.
 - Single elevated process: app manifest requests Administrator; the tunnel runs
   in-process (no service, no IPC). `wintun.dll` must be beside `ezvpn.dll`.
 - `Ezvpn.Core` is `net8.0` and pure (unit-tested). `Ezvpn.App` is

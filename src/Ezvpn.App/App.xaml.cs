@@ -38,7 +38,9 @@ public partial class App : Application
             // wintun.dll the window would open but Connect would fail later.
             EzvpnSession.EnsureNativeDependencies();
 
-            // Route the Rust core's logs to stderr (honors RUST_LOG).
+            // Route the Rust core's logs to stderr (honors RUST_LOG), which
+            // AppLog has just pointed at %ProgramData%\ezvpn\ezvpn.log.
+            AppLog.Start();
             EzvpnSession.InitLogging();
 
             // EZVPN_KEYCHAIN=mock: secrets in memory, profiles in their own
@@ -86,6 +88,7 @@ public partial class App : Application
     /// <summary>Best-effort append to %ProgramData%\ezvpn\startup-error.log.</summary>
     private static void TryLog(string caption, string detail)
     {
+        AppLog.Write("app", $"{caption}: {detail}");
         try
         {
             var dir = Path.Combine(

@@ -306,12 +306,28 @@ public sealed class TunnelsManager : ObservableObject
                 return;
             }
 
+            // Timed from here, the moment the core is asked: ezvpn_start
+            // returns once the endpoint is online (the relay phase), and
+            // CONNECTED follows the dial, handshake, adapter and routes.
+            var profile = vm.Profile;
+            AppLog.Write("app", $"connect '{profile.Name}': {profile.RelayUrls.Count} custom relay(s)"
+                + (profile.RelayUrls.Count > 0 ? $", QUIC address discovery {(profile.RelayQuicAddrDiscovery ? "on" : "off")}" : "")
+                + $", routes [{string.Join(", ", profile.Routes)}], routes6 [{string.Join(", ", profile.Routes6)}]");
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+
             // Events arrive on a library thread; hop to the UI thread without
             // waiting (the core holds a lock while the handler runs, and
-            // ezvpn_stop waits for it).
+            // ezvpn_stop waits for it). Logged before the hop, so the time is
+            // the core's.
             var session = await Task.Run(() => EzvpnSession.Start(
                 json,
-                ev => _dispatcher.TryEnqueue(() => OnTunnelEvent(generation, ev)))).ConfigureAwait(true);
+                ev =>
+                {
+                    AppLog.Write("app", $"event {ev.Kind} at {clock.ElapsedMilliseconds} ms"
+                        + (ev.Message is null ? "" : $": {ev.Message}"));
+                    _dispatcher.TryEnqueue(() => OnTunnelEvent(generation, ev));
+                })).ConfigureAwait(true);
+            AppLog.Write("app", $"ezvpn_start returned at {clock.ElapsedMilliseconds} ms");
             if (generation != _generation)
             {
                 // Superseded while starting (disconnected or reconnected): the
@@ -335,6 +351,7 @@ public sealed class TunnelsManager : ObservableObject
         {
             // Only surface the failure if this attempt is still current; a stale
             // attempt's failure is irrelevant to whatever replaced it.
+            AppLog.Write("app", $"connect '{vm.Profile.Name}' failed: {ex.Message}");
             if (generation == _generation)
             {
                 _pending = null;
@@ -426,16 +443,22 @@ public sealed class TunnelsManager : ObservableObject
     /// <summary>Dispose a session, swallowing teardown failures.</summary>
     private static void DisposeSession(EzvpnSession? session)
     {
+        if (session is null)
+        {
+            return;
+        }
         try
         {
-            session?.Dispose();
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            session.Dispose();
+            AppLog.Write("app", $"ezvpn_stop took {clock.ElapsedMilliseconds} ms");
         }
         catch (Exception ex)
         {
             // Teardown is best-effort; a failure must not crash the app via an
             // unobserved background-task exception. Volatile routes/adapter are
             // reclaimed by the OS at worst on the next reboot.
-            System.Diagnostics.Debug.WriteLine($"ezvpn teardown failed: {ex}");
+            AppLog.Write("app", $"ezvpn teardown failed: {ex}");
         }
     }
 
