@@ -43,6 +43,10 @@ public sealed class TunnelsManager : ObservableObject
     // and its session is discarded instead of installed.
     private int _generation;
 
+    // Set by ShutdownAsync: from then on no connect starts, so the native work
+    // it waits for is all there will be.
+    private bool _shuttingDown;
+
     public TunnelsManager(DispatcherQueue dispatcher)
     {
         _dispatcher = dispatcher;
@@ -261,12 +265,21 @@ public sealed class TunnelsManager : ObservableObject
     /// </summary>
     public async Task ConnectAsync(TunnelViewModel vm)
     {
+        if (_shuttingDown)
+        {
+            return;
+        }
         if (_active is not null && !ReferenceEquals(_active, vm))
         {
             // Wait for the previous tunnel's teardown to finish before starting
             // this one: they share the wintun adapter and the Rust single-instance
             // lock, so overlapping A's teardown with B's setup would race.
             await DisconnectAsync().ConfigureAwait(true);
+            if (_shuttingDown)
+            {
+                // The app began to exit while that teardown ran.
+                return;
+            }
         }
 
         // Claim this attempt. A subsequent disconnect/reconnect bumps _generation,
@@ -412,9 +425,23 @@ public sealed class TunnelsManager : ObservableObject
     }
 
     /// <summary>
-    /// Tear down synchronously, blocking until the native teardown completes. For
-    /// app-exit paths only, where routes/adapter must be removed before the
-    /// process ends and there is no live UI left to keep responsive.
+    /// For the app's exit: refuse every connect from now on, disconnect, and
+    /// complete once all native work has finished — the teardown, a setup still
+    /// in progress, and a teardown a running connection-path query defers (see
+    /// <see cref="QueryConnPathAsync"/>). The UI thread keeps pumping meanwhile.
+    /// </summary>
+    public Task ShutdownAsync()
+    {
+        _shuttingDown = true;
+        return DisconnectAsync();
+    }
+
+    /// <summary>
+    /// Tear down synchronously, blocking until the attached session's native
+    /// teardown completes. A last resort for an exit that did not go through
+    /// <see cref="ShutdownAsync"/>: it cannot wait for a setup still in progress
+    /// (that finishes on the UI thread this blocks), so routes/adapter of one can
+    /// outlive it.
     /// </summary>
     public void ShutdownSync() => DisposeSession(DetachActive());
 
@@ -473,7 +500,7 @@ public sealed class TunnelsManager : ObservableObject
     /// Snapshot how <paramref name="vm"/>'s running tunnel reaches the server,
     /// for the "Connection path…" dialog; null when it is not the active tunnel
     /// or the snapshot is unavailable. Runs off the UI thread: the call waits on
-    /// the custom relays' health requests.
+    /// the custom relays' health requests. Counted as native work while it runs.
     /// </summary>
     public async Task<ConnPathSnapshot?> QueryConnPathAsync(TunnelViewModel vm)
     {
@@ -481,7 +508,16 @@ public sealed class TunnelsManager : ObservableObject
         {
             return null;
         }
-        return await Task.Run(session.TryGetConnPath).ConfigureAwait(true);
+        // The query holds the session's handle while it waits on the relays'
+        // health, so a disconnect meanwhile only marks the handle closed:
+        // ezvpn_stop runs when the query lets go, on its thread. Count the query
+        // as native work, so whatever waits for the teardown (the next connect,
+        // the app's exit) waits for it too. The chained task never faults.
+        var query = Task.Run(session.TryGetConnPath);
+        _nativeWork = Task.WhenAll(
+            _nativeWork,
+            query.ContinueWith(static _ => { }, TaskScheduler.Default));
+        return await query.ConfigureAwait(true);
     }
 
     /// <summary>

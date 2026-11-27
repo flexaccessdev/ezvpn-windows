@@ -26,7 +26,10 @@ public sealed partial class MainWindow : Window
     private readonly IntPtr _hwnd;
     private TrayIcon? _tray;
     private TunnelViewModel? _trackedCurrent;
+    // Quit has begun (_isExiting) / has finished its shutdown (_shutDown): only
+    // then may the window really close.
     private bool _isExiting;
+    private bool _shutDown;
 
     /// <summary>Which first-run step the empty state's buttons act on.</summary>
     private enum EmptyMode
@@ -81,13 +84,20 @@ public sealed partial class MainWindow : Window
         // while in the tray — its poll timer keeps ticking and its PropertyChanged
         // subscriptions keep firing, so the tray icon's connection state (see
         // SetUpTray) stays live while the window is closed. Without a tray there is
-        // nothing to hide to, so fall back to the plain quit behavior.
+        // nothing to hide to, so closing quits — through Quit, like the tray's
+        // Quit: the window stays until its async shutdown has finished, as does a
+        // close while that shutdown runs.
         AppWindow.Closing += (_, e) =>
         {
-            if (_tray is not null && !_isExiting)
+            if (_shutDown)
             {
-                e.Cancel = true;
-                AppWindow.Hide();
+                return;
+            }
+            e.Cancel = true;
+            AppWindow.Hide();
+            if (_tray is null || _isExiting)
+            {
+                Quit();
             }
         };
 
@@ -95,10 +105,8 @@ public sealed partial class MainWindow : Window
         {
             _tray?.Dispose();
             _tray = null;
-            // Last-resort teardown on window close (e.g. the no-tray fallback where
-            // closing quits). Block until routes/adapter are removed — the window is
-            // already gone, so there is no live UI to keep responsive. In the Quit
-            // path the session is already torn down, so this is a no-op.
+            // Last resort, for a close that did not wait for Quit's shutdown.
+            // Every close does (see Closing above), so after Quit both are no-ops.
             _manager.ShutdownSync();
             AppLog.Stop();
         };
@@ -331,14 +339,21 @@ public sealed partial class MainWindow : Window
 
     private async void Quit()
     {
+        if (_isExiting)
+        {
+            // Already on its way out.
+            return;
+        }
         _isExiting = true;
         _tray?.Dispose();
         _tray = null;
-        // Await teardown so routes/adapter are removed before we exit, while the UI
-        // thread keeps pumping (no freeze). The blocking native stop runs on a
-        // background thread inside DisconnectAsync.
-        await _manager.DisconnectAsync();
+        // Await every native setup and teardown so routes/adapter are removed
+        // before we exit, while the UI thread keeps pumping (no freeze). No
+        // connect starts from here on. The blocking native work runs on
+        // background threads.
+        await _manager.ShutdownAsync();
         AppLog.Stop();
+        _shutDown = true;
         Application.Current.Exit();
     }
 
