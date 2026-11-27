@@ -100,6 +100,7 @@ public sealed partial class MainWindow : Window
             // already gone, so there is no live UI to keep responsive. In the Quit
             // path the session is already torn down, so this is a no-op.
             _manager.ShutdownSync();
+            AppLog.Stop();
         };
     }
 
@@ -337,6 +338,7 @@ public sealed partial class MainWindow : Window
         // thread keeps pumping (no freeze). The blocking native stop runs on a
         // background thread inside DisconnectAsync.
         await _manager.DisconnectAsync();
+        AppLog.Stop();
         Application.Current.Exit();
     }
 

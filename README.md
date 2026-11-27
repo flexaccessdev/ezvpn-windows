@@ -228,7 +228,7 @@ The app logs to `%ProgramData%\ezvpn\ezvpn.log`, with the previous run kept as
 `ezvpn.log.1`: the Rust core's log, filtered by `RUST_LOG` (default
 `info,iroh=warn,tracing=warn`), and the app's own timings for each connect
 (when `ezvpn_start` returned, when each event arrived) and disconnect. Every
-line is stamped to the millisecond as it is written, so the gaps between them
+line is stamped to the millisecond when it is logged, so the gaps between them
 show where a slow connect spends its time. A connect names the profile, its
 relay count and routes; secrets never appear in it.
 

@@ -306,28 +306,34 @@ public sealed class TunnelsManager : ObservableObject
                 return;
             }
 
-            // Timed from here, the moment the core is asked: ezvpn_start
+            // Timed from the moment the core is asked, on the worker thread
+            // (so no thread-pool or dispatcher wait is counted): ezvpn_start
             // returns once the endpoint is online (the relay phase), and
             // CONNECTED follows the dial, handshake, adapter and routes.
             var profile = vm.Profile;
             AppLog.Write("app", $"connect '{profile.Name}': {profile.RelayUrls.Count} custom relay(s)"
                 + (profile.RelayUrls.Count > 0 ? $", QUIC address discovery {(profile.RelayQuicAddrDiscovery ? "on" : "off")}" : "")
                 + $", routes [{string.Join(", ", profile.Routes)}], routes6 [{string.Join(", ", profile.Routes6)}]");
-            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var clock = new System.Diagnostics.Stopwatch();
 
             // Events arrive on a library thread; hop to the UI thread without
             // waiting (the core holds a lock while the handler runs, and
             // ezvpn_stop waits for it). Logged before the hop, so the time is
-            // the core's.
-            var session = await Task.Run(() => EzvpnSession.Start(
-                json,
-                ev =>
-                {
-                    AppLog.Write("app", $"event {ev.Kind} at {clock.ElapsedMilliseconds} ms"
-                        + (ev.Message is null ? "" : $": {ev.Message}"));
-                    _dispatcher.TryEnqueue(() => OnTunnelEvent(generation, ev));
-                })).ConfigureAwait(true);
-            AppLog.Write("app", $"ezvpn_start returned at {clock.ElapsedMilliseconds} ms");
+            // the core's; AppLog.Write only queues the line.
+            var session = await Task.Run(() =>
+            {
+                clock.Start();
+                var started = EzvpnSession.Start(
+                    json,
+                    ev =>
+                    {
+                        AppLog.Write("app", $"event {ev.Kind} at {clock.ElapsedMilliseconds} ms"
+                            + (ev.Message is null ? "" : $": {ev.Message}"));
+                        _dispatcher.TryEnqueue(() => OnTunnelEvent(generation, ev));
+                    });
+                AppLog.Write("app", $"ezvpn_start returned at {clock.ElapsedMilliseconds} ms");
+                return started;
+            }).ConfigureAwait(true);
             if (generation != _generation)
             {
                 // Superseded while starting (disconnected or reconnected): the
