@@ -164,6 +164,7 @@ public sealed class TunnelViewModel : ObservableObject
 
     public string RelaysText => Profile.RelayUrls.Count > 0
         ? string.Join(", ", Profile.RelayUrls)
+            + (Profile.RelayQuicAddrDiscovery ? "" : " (QUIC address discovery off)")
         : "Default iroh relays";
 
     public string ConfiguredRoutesText

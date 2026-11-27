@@ -85,11 +85,12 @@ public sealed partial class TunnelEditDialog : ContentDialog
         NodeIdBox.Text = profile.ServerNodeId;
         RelayBox.Text = string.Join(", ", profile.RelayUrls);
         RelayTokenBox.Password = relayToken ?? "";
+        QuicAddrDiscoveryCheck.IsChecked = profile.RelayQuicAddrDiscovery;
         RoutesBox.Text = string.Join(", ", profile.Routes);
         Routes6Box.Text = string.Join(", ", profile.Routes6);
         AutoReconnectCheck.IsChecked = profile.AutoReconnect;
         MaxAttemptsBox.Value = profile.MaxReconnectAttempts ?? double.NaN;
-        UpdateRelayTokenEnabled();
+        UpdateCustomRelayFieldsEnabled();
         UpdateMaxAttemptsEnabled();
         // Don't hide settings the profile actually uses behind a closed expander.
         AdvancedExpander.IsExpanded = profile.RelayUrls.Count > 0
@@ -129,6 +130,7 @@ public sealed partial class TunnelEditDialog : ContentDialog
         profile.ServerNodeId = NodeIdBox.Text.Trim();
         profile.AuthKeyId = RequiredKeyId;
         profile.RelayUrls = TunnelValidation.SplitList(RelayBox.Text);
+        profile.RelayQuicAddrDiscovery = QuicAddrDiscoveryCheck.IsChecked ?? true;
         profile.Routes = TunnelValidation.SplitList(RoutesBox.Text);
         profile.Routes6 = TunnelValidation.SplitList(Routes6Box.Text);
         profile.AutoReconnect = AutoReconnectCheck.IsChecked ?? true;
@@ -199,19 +201,32 @@ public sealed partial class TunnelEditDialog : ContentDialog
         }
     }
 
-    // The relay token is only meaningful with custom relays: disable (and clear)
-    // the field whenever no relay URLs are entered.
+    // The relay token and QUIC address discovery are only meaningful with custom
+    // relays (the core rejects either with the default relays). With no relay
+    // URLs each is disabled, except while it holds a non-default value (a token,
+    // discovery off): it then stays usable so it can be reset, rather than being
+    // stuck behind a disabled control, and Save refuses it until it is reset or
+    // a relay is added. Nothing is cleared behind the user's back, so emptying
+    // the relay field while editing loses neither. Relays are counted as Save
+    // parses them, so a stray comma is not a relay.
     private void OnRelayBoxTextChanged(object sender, TextChangedEventArgs args) =>
-        UpdateRelayTokenEnabled();
+        UpdateCustomRelayFieldsEnabled();
 
-    private void UpdateRelayTokenEnabled()
+    private void OnCustomRelayFieldChanged(object sender, RoutedEventArgs args) =>
+        UpdateCustomRelayFieldsEnabled();
+
+    // IsChecked="True" in the XAML raises Checked during InitializeComponent,
+    // before every field is assigned; the XAML's starting state (both disabled,
+    // no relays) is already right then, so there is nothing to do yet.
+    private void UpdateCustomRelayFieldsEnabled()
     {
-        var hasRelays = TunnelValidation.SplitList(RelayBox.Text).Count > 0;
-        RelayTokenBox.IsEnabled = hasRelays;
-        if (!hasRelays)
+        if (RelayBox is null || RelayTokenBox is null || QuicAddrDiscoveryCheck is null)
         {
-            RelayTokenBox.Password = "";
+            return;
         }
+        var hasRelays = TunnelValidation.SplitList(RelayBox.Text).Count > 0;
+        RelayTokenBox.IsEnabled = hasRelays || RelayTokenBox.Password.Length > 0;
+        QuicAddrDiscoveryCheck.IsEnabled = hasRelays || QuicAddrDiscoveryCheck.IsChecked == false;
     }
 
     /// <summary>
@@ -275,14 +290,21 @@ public sealed partial class TunnelEditDialog : ContentDialog
         }
 
         // The relay token is custom-relay-only (the core rejects it otherwise).
-        // The field is normally auto-cleared when no relays are present; this
-        // guards the edge case and gives a clear message. Relay URL *format* is
+        // It stays editable with no relays while it holds a value (see
+        // UpdateCustomRelayFieldsEnabled), so this is where a token left with
+        // no relays is refused. Relay URL *format* is
         // validated by the core at connect time, matching ezvpn-apple (which does
         // no client-side URL validation either).
         if (!string.IsNullOrWhiteSpace(RelayTokenBox.Password)
             && TunnelValidation.SplitList(RelayBox.Text).Count == 0)
         {
             return ("A relay token requires at least one relay URL.", RelayBox);
+        }
+        // Likewise for QUIC address discovery, which the default relays serve.
+        if (QuicAddrDiscoveryCheck.IsChecked == false
+            && TunnelValidation.SplitList(RelayBox.Text).Count == 0)
+        {
+            return ("QUIC address discovery can only be turned off with at least one relay URL.", RelayBox);
         }
 
         var routes4 = TunnelValidation.SplitList(RoutesBox.Text);

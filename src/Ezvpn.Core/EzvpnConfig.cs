@@ -26,6 +26,11 @@ public static class EzvpnConfig
     /// token. It is only valid with custom relays: a non-blank token with no
     /// <see cref="TunnelProfile.RelayUrls"/> throws (the core rejects it too),
     /// and a null/blank token is omitted from the JSON.
+    ///
+    /// <see cref="TunnelProfile.RelayQuicAddrDiscovery"/> is a custom-relay
+    /// setting too, which the core rejects with the default relays whichever
+    /// value it has: it is sent only with custom relays, and turning it off
+    /// without any throws.
     /// </summary>
     public static string Build(TunnelProfile profile, string? authKey, string? relayAuthToken = null)
     {
@@ -40,6 +45,13 @@ public static class EzvpnConfig
             throw new ArgumentException(
                 "A relay token requires at least one relay URL.", nameof(relayAuthToken));
         }
+        var hasCustomRelays = profile.RelayUrls.Count > 0;
+        if (!profile.RelayQuicAddrDiscovery && !hasCustomRelays)
+        {
+            throw new ArgumentException(
+                "QUIC address discovery can only be turned off with at least one relay URL.",
+                nameof(profile));
+        }
 
         var dto = new StartConfigDto
         {
@@ -47,6 +59,7 @@ public static class EzvpnConfig
             AuthKey = authKey,
             RelayUrls = profile.RelayUrls,
             RelayAuthToken = relayToken,
+            RelayQuicAddrDiscovery = hasCustomRelays ? profile.RelayQuicAddrDiscovery : null,
             Routes = profile.Routes,
             Routes6 = profile.Routes6,
             Instance = profile.Instance,
@@ -69,6 +82,9 @@ public static class EzvpnConfig
 
         [JsonPropertyName("relay_auth_token")]
         public string? RelayAuthToken { get; set; }
+
+        [JsonPropertyName("relay_quic_addr_discovery")]
+        public bool? RelayQuicAddrDiscovery { get; set; }
 
         [JsonPropertyName("routes")]
         public List<string> Routes { get; set; } = new();

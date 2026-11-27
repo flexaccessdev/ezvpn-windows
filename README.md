@@ -199,7 +199,13 @@ involved.
 3. *Add profile* (Ctrl+N): give it a name, the server's iroh node id, the auth
    key to authenticate with (picked for you when there is only one), and
    optional split-tunnel routes (`10.0.0.0/8`, `fd00::/8`, …). Custom relays and
-   reconnect limits sit under *Advanced*.
+   reconnect limits sit under *Advanced*. With custom relays, list every relay
+   the server is configured with: they turn off iroh address lookup, so these
+   URLs are the client's only way to find the server, which may be homed on any
+   of them. The relay token and *QUIC address discovery* (on by default, all the
+   relays or none) apply only to custom relays; turn discovery off for relays
+   behind a Cloudflare Tunnel or another HTTP-only front, which cannot serve it
+   and otherwise delay each connect by up to 3 s.
 4. Select it and **Connect**. The status card shows the state, uptime and
    assigned IP; the *Connection* section adds the gateway and routes, and
    **Connection path…** takes a snapshot of the live iroh paths (the one in use
