@@ -224,6 +224,14 @@ device identity. A profile keeps its own copy of the secret it was saved with, s
 deleting a key from the list doesn't break profiles already using it — but they
 can't be re-saved until a key is picked again.
 
+The app logs to `%ProgramData%\ezvpn\ezvpn.log`, with the previous run kept as
+`ezvpn.log.1`: the Rust core's log, filtered by `RUST_LOG` (default
+`info,iroh=warn,tracing=warn`), and the app's own timings for each connect
+(when `ezvpn_start` returned, when each event arrived) and disconnect. Every
+line is stamped to the millisecond when it is logged, so the gaps between them
+show where a slow connect spends its time. A connect names the profile, its
+relay count and routes; secrets never appear in it.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

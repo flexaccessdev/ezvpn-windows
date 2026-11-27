@@ -40,10 +40,10 @@
          next to the app's own version (EzvpnAppVersion in Directory.Build.props,
          which is independent of this pin). A local core build (EZVPN_LOCAL_DLL)
          still reports the pinned number: the local DLL carries none. -->
-    <EzvpnReleaseTag Condition="'$(EzvpnReleaseTag)' == ''">v0.0.74</EzvpnReleaseTag>
+    <EzvpnReleaseTag Condition="'$(EzvpnReleaseTag)' == ''">v0.0.75</EzvpnReleaseTag>
     <EzvpnCoreVersion>$(EzvpnReleaseTag.TrimStart('v'))</EzvpnCoreVersion>
     <EzvpnDllZipUrl>https://github.com/flexaccessdev/ezvpn/releases/download/$(EzvpnReleaseTag)/ezvpn-windows.dll.zip</EzvpnDllZipUrl>
-    <EzvpnDllZipSha256>211eef8f7224b60d2a8f3b06fc9a6287d1f46a5c5305cae878087b4fa9b20f82</EzvpnDllZipSha256>
+    <EzvpnDllZipSha256>712edb7f5e3f5c18ed525ad26a3c839ed754e152194b41a8a1ee1d2a79e5a3d1</EzvpnDllZipSha256>
     <!-- The pin's identity: the checksum too, not just the tag, so a re-pin of the
          same tag to a re-uploaded asset (bump-dll.ps1 rewrites both) also stages afresh. -->
     <_EzvpnPinId>$(EzvpnReleaseTag)</_EzvpnPinId>
