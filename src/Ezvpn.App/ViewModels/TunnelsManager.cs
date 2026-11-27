@@ -392,22 +392,23 @@ public sealed class TunnelsManager : ObservableObject
 
     /// <summary>
     /// Detach the active session from the UI immediately, then tear it down on a
-    /// background thread. The returned task completes when the native teardown
-    /// (<c>ezvpn_stop</c> removes routes/adapter and can take a few seconds)
-    /// finishes — await it when teardown must complete before the next step
+    /// background thread. The returned task completes when all native work
+    /// begun so far has finished: this teardown (<c>ezvpn_stop</c> removes
+    /// routes/adapter and can take a few seconds), an earlier one still running,
+    /// and a setup still in progress, whose session is torn down when its start
+    /// returns. Await it when teardown must complete before the next step
     /// (switching tunnels, app exit); fire-and-forget otherwise.
     /// </summary>
     public Task DisconnectAsync()
     {
         var session = DetachActive();
-        if (session is null)
+        if (session is not null)
         {
-            return Task.CompletedTask;
+            var teardown = Task.Run(() => DisposeSession(session));
+            // A reconnect right after this must not start until the teardown is done.
+            _nativeWork = Task.WhenAll(_nativeWork, teardown);
         }
-        var teardown = Task.Run(() => DisposeSession(session));
-        // A reconnect right after this must not start until the teardown is done.
-        _nativeWork = Task.WhenAll(_nativeWork, teardown);
-        return teardown;
+        return _nativeWork;
     }
 
     /// <summary>

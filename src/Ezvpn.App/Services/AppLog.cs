@@ -24,13 +24,15 @@ namespace Ezvpn.App.Services;
 /// callback, which runs while the core holds a lock <c>ezvpn_stop</c> waits
 /// for, and the stderr pump, which the core's own logging waits on. A queue
 /// the writer cannot keep up with (a stalled disk) drops lines rather than
-/// grow; <see cref="Stop"/> drains it before the process exits.
+/// grow; <see cref="Stop"/> drains stderr into it, then it into the file,
+/// before the process exits.
 ///
 /// The previous run's file is kept as <c>ezvpn.log.1</c>, as is the file
 /// whenever it passes <see cref="MaxBytes"/>. Logging never fails the app: a
 /// file that cannot be renamed (a reader holds it without delete sharing, as
-/// <c>Get-Content -Wait</c> does) keeps growing, and one that cannot be opened
-/// or written drops lines; either is tried again after <see cref="RetryDelay"/>.
+/// <c>Get-Content -Wait</c> does) keeps growing until a retry renames it, and
+/// one that cannot be opened or written drops lines until a retry reopens it;
+/// retries come every <see cref="RetryDelay"/>.
 /// </summary>
 internal static partial class AppLog
 {
@@ -46,9 +48,16 @@ internal static partial class AppLog
     // lifetime, or its finalizer would close the handle under the core.
     private static SafeFileHandle? _stderrWrite;
 
+    // Written through stderr by Stop: once the pump reads it back, every line
+    // the core wrote before it is queued (a pipe keeps its order).
+    private static readonly string DrainMarker = $"ezvpn-log-drained-{Guid.NewGuid():N}";
+    private static readonly ManualResetEventSlim StderrDrained = new();
+
     // The writer thread's alone.
     private static StreamWriter? _file;
     private static DateTime _retryAt;
+    // A rename that failed, tried again at the retry whatever the file's size.
+    private static bool _rotatePending;
 
     public static string FilePath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
@@ -95,8 +104,9 @@ internal static partial class AppLog
     }
 
     /// <summary>
-    /// Write out what is queued, waiting up to <see cref="StopTimeout"/>, and
-    /// log nothing more. For the app's exit; safe to call more than once.
+    /// Queue what the core has written to stderr so far, write out the queue,
+    /// and log nothing more, all within <see cref="StopTimeout"/>. For the
+    /// app's exit, after the native teardown; safe to call more than once.
     /// </summary>
     public static void Stop()
     {
@@ -104,8 +114,25 @@ internal static partial class AppLog
         {
             return;
         }
+        var clock = Stopwatch.StartNew();
+        DrainStderr(StopTimeout);
         queue.CompleteAdding();
-        _writer?.Join(StopTimeout);
+        var left = StopTimeout - clock.Elapsed;
+        _writer?.Join(left > TimeSpan.Zero ? left : TimeSpan.Zero);
+    }
+
+    // Wait, up to timeout, until the pump has read back a marker written
+    // after everything the core has written. The write runs on its own task:
+    // one into a pipe that nothing reads any more would not return.
+    private static void DrainStderr(TimeSpan timeout)
+    {
+        if (_stderrWrite is not { } write)
+        {
+            return;
+        }
+        var marker = Encoding.UTF8.GetBytes(DrainMarker + "\n");
+        _ = Task.Run(() => WriteFile(write, marker, (uint)marker.Length, out _, IntPtr.Zero));
+        StderrDrained.Wait(timeout);
     }
 
     private static void WriteAll(BlockingCollection<string> queue)
@@ -123,9 +150,10 @@ internal static partial class AppLog
         {
             try
             {
-                if (DateTime.UtcNow >= _retryAt && (_file is null || _file.BaseStream.Length >= MaxBytes))
+                var rotate = _rotatePending || (_file is not null && _file.BaseStream.Length >= MaxBytes);
+                if ((_file is null || rotate) && DateTime.UtcNow >= _retryAt)
                 {
-                    Reopen(rotate: _file is not null);
+                    Reopen(rotate);
                 }
                 _file?.WriteLine(line);
             }
@@ -133,9 +161,8 @@ internal static partial class AppLog
             {
                 // A full disk, say: drop lines until the retry.
                 Debug.WriteLine($"ezvpn log write failed: {ex}");
-                _file?.Dispose();
-                _file = null;
                 _retryAt = DateTime.UtcNow + RetryDelay;
+                CloseFile();
             }
         }
     }
@@ -144,18 +171,22 @@ internal static partial class AppLog
     // again: anew after a rename, for append when there was none or it failed.
     private static void Reopen(bool rotate)
     {
-        _file?.Dispose();
-        _file = null;
+        CloseFile();
         var mode = FileMode.Append;
-        if (rotate && File.Exists(FilePath))
+        if (rotate)
         {
             try
             {
-                File.Move(FilePath, FilePath + ".1", overwrite: true);
+                if (File.Exists(FilePath))
+                {
+                    File.Move(FilePath, FilePath + ".1", overwrite: true);
+                }
                 mode = FileMode.Create;
+                _rotatePending = false;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+                _rotatePending = true;
                 _retryAt = DateTime.UtcNow + RetryDelay;
             }
         }
@@ -168,6 +199,23 @@ internal static partial class AppLog
         {
             Debug.WriteLine($"ezvpn log open failed: {ex}");
             _retryAt = DateTime.UtcNow + RetryDelay;
+        }
+    }
+
+    // Let go of the file before closing it: a close whose flush retries a
+    // write that just failed can throw again, which must not end the writer
+    // thread (and with it the process).
+    private static void CloseFile()
+    {
+        var file = _file;
+        _file = null;
+        try
+        {
+            file?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"ezvpn log close failed: {ex}");
         }
     }
 
@@ -197,6 +245,17 @@ internal static partial class AppLog
             using var reader = new StreamReader(new FileStream(read, FileAccess.Read, 0), Encoding.UTF8);
             while (reader.ReadLine() is { } line)
             {
+                // The marker ends the line it is read on: it follows whatever
+                // the core left unterminated.
+                if (line.EndsWith(DrainMarker, StringComparison.Ordinal))
+                {
+                    if (line.Length > DrainMarker.Length)
+                    {
+                        Write("core", line[..^DrainMarker.Length]);
+                    }
+                    StderrDrained.Set();
+                    continue;
+                }
                 Write("core", line);
             }
         }
@@ -214,4 +273,10 @@ internal static partial class AppLog
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool SetStdHandle(int nStdHandle, IntPtr hHandle);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool WriteFile(
+        SafeFileHandle hFile, ReadOnlySpan<byte> lpBuffer, uint nNumberOfBytesToWrite, out uint lpNumberOfBytesWritten,
+        IntPtr lpOverlapped);
 }
