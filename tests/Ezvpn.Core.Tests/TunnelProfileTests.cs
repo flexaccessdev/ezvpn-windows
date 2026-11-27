@@ -12,6 +12,7 @@ public class TunnelProfileTests
         ServerNodeId = "abc123",
         AuthKeyId = "key-1",
         RelayUrls = { "https://relay.example/" },
+        RelayQuicAddrDiscovery = false,
         Routes = { "10.0.0.0/8" },
         Routes6 = { "fd00::/8" },
         MaxReconnectAttempts = 5,
@@ -30,6 +31,7 @@ public class TunnelProfileTests
         Assert.Equal("abc123", restored.ServerNodeId);
         Assert.Equal("key-1", restored.AuthKeyId);
         Assert.Equal(profile.RelayUrls, restored.RelayUrls);
+        Assert.False(restored.RelayQuicAddrDiscovery);
         Assert.Equal(profile.Routes, restored.Routes);
         Assert.Equal(profile.Routes6, restored.Routes6);
         Assert.Equal(5u, restored.MaxReconnectAttempts);
@@ -88,6 +90,22 @@ public class TunnelProfileTests
         public void Save(StoredAuthKey record) => _records[record.Id] = record;
 
         public void Delete(string id) => _records.Remove(id);
+    }
+
+    [Fact]
+    public void QuicAddrDiscoveryReadsAsOnWhenAbsent()
+    {
+        var json = """
+            {"id":"6b1c9d0e-0000-0000-0000-000000000000","name":"work",
+             "serverNodeId":"abc123","authKeyId":"key-1",
+             "relayUrls":["https://relay.example/"],"routes":[],"routes6":[],
+             "autoReconnect":true}
+            """;
+
+        var profile = JsonSerializer.Deserialize<TunnelProfile>(json);
+
+        Assert.NotNull(profile);
+        Assert.True(profile!.RelayQuicAddrDiscovery);
     }
 
     [Fact]

@@ -77,6 +77,46 @@ public class EzvpnConfigTests
     }
 
     [Fact]
+    public void Build_SendsQuicAddrDiscovery_OnlyWithCustomRelays()
+    {
+        var defaults = new TunnelProfile { ServerNodeId = "node", AuthKeyId = "key-1" };
+        using (var doc = JsonDocument.Parse(EzvpnConfig.Build(defaults, "ed25519-sec:key")))
+        {
+            // The core rejects the setting with the default relays, even when on.
+            Assert.False(doc.RootElement.TryGetProperty("relay_quic_addr_discovery", out _));
+        }
+
+        var custom = new TunnelProfile
+        {
+            ServerNodeId = "node",
+            AuthKeyId = "key-1",
+            RelayUrls = { "https://relay.one/" },
+        };
+        using (var doc = JsonDocument.Parse(EzvpnConfig.Build(custom, "ed25519-sec:key")))
+        {
+            Assert.True(doc.RootElement.GetProperty("relay_quic_addr_discovery").GetBoolean());
+        }
+
+        custom.RelayQuicAddrDiscovery = false;
+        using (var doc = JsonDocument.Parse(EzvpnConfig.Build(custom, "ed25519-sec:key")))
+        {
+            Assert.False(doc.RootElement.GetProperty("relay_quic_addr_discovery").GetBoolean());
+        }
+    }
+
+    [Fact]
+    public void Build_QuicAddrDiscoveryOffWithoutRelays_Throws()
+    {
+        var profile = new TunnelProfile
+        {
+            ServerNodeId = "node",
+            AuthKeyId = "key-1",
+            RelayQuicAddrDiscovery = false,
+        };
+        Assert.Throws<ArgumentException>(() => EzvpnConfig.Build(profile, "ed25519-sec:key"));
+    }
+
+    [Fact]
     public void Build_IncludesAuthKeyAndMaxAttempts_WhenSet()
     {
         var profile = new TunnelProfile

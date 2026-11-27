@@ -41,6 +41,17 @@ public sealed class TunnelProfile
     [JsonPropertyName("relayUrls")]
     public List<string> RelayUrls { get; set; } = new();
 
+    /// <summary>
+    /// Whether the custom relays serve QUIC address discovery, all of them or
+    /// none. On by default (and when absent from the JSON); turn it off for
+    /// relays behind a Cloudflare Tunnel or another HTTP-only front, which
+    /// otherwise delay each connect by up to 3 s. Only meaningful with
+    /// <see cref="RelayUrls"/>: the core rejects the setting with the default
+    /// relays, so <see cref="EzvpnConfig.Build"/> sends it only then.
+    /// </summary>
+    [JsonPropertyName("relayQuicAddrDiscovery")]
+    public bool RelayQuicAddrDiscovery { get; set; } = true;
+
     /// <summary>IPv4 CIDRs routed through the tunnel (split tunnel). Optional.</summary>
     [JsonPropertyName("routes")]
     public List<string> Routes { get; set; } = new();

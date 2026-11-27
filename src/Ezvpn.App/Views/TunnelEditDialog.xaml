@@ -70,13 +70,28 @@
                 <StackPanel Spacing="14">
                     <TextBox x:Name="RelayBox" Header="Custom relay URLs"
                              PlaceholderText="https://relay.example.com"
-                             Description="Comma-separated. Leave blank to use the default iroh relays."
+                             Description="Comma-separated. Leave blank to use the default iroh relays; otherwise list every relay the server is configured with, since the client finds the server only through these."
                              TextWrapping="Wrap" AcceptsReturn="False"
                              TextChanged="OnRelayBoxTextChanged" />
 
+                    <!-- The token and QUIC address discovery are custom-relay
+                         settings. With no relay URLs each is disabled, unless it
+                         holds a non-default value: then it stays usable so it can
+                         be reset, and Save refuses it (see UpdateCustomRelayFieldsEnabled). -->
                     <PasswordBox x:Name="RelayTokenBox" Header="Relay token"
                                  PlaceholderText="Only with custom relays"
-                                 IsEnabled="False" />
+                                 IsEnabled="False"
+                                 PasswordChanged="OnCustomRelayFieldChanged" />
+
+                    <StackPanel Spacing="2">
+                        <CheckBox x:Name="QuicAddrDiscoveryCheck" Content="QUIC address discovery"
+                                  IsChecked="True" IsEnabled="False"
+                                  Checked="OnCustomRelayFieldChanged" Unchecked="OnCustomRelayFieldChanged" />
+                        <TextBlock TextWrapping="Wrap"
+                                   Style="{ThemeResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   Text="Turn off when the relays are behind a Cloudflare Tunnel or another HTTP-only front, which cannot serve it and otherwise delay each connect by up to 3 s. It applies to all the relays or none." />
+                    </StackPanel>
 
                     <CheckBox x:Name="AutoReconnectCheck" Content="Reconnect automatically when the connection drops"
                               IsChecked="True"
