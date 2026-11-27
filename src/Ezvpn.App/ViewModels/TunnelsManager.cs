@@ -269,17 +269,16 @@ public sealed class TunnelsManager : ObservableObject
         {
             return;
         }
+
+        // Switching from another tunnel: detach it now, and wait for its
+        // teardown only after claiming this attempt below — they share the
+        // wintun adapter and the Rust single-instance lock, so overlapping its
+        // teardown with this setup would race. Detaching resets whatever is
+        // pending, so it has to come before the claim.
+        Task? teardown = null;
         if (_active is not null && !ReferenceEquals(_active, vm))
         {
-            // Wait for the previous tunnel's teardown to finish before starting
-            // this one: they share the wintun adapter and the Rust single-instance
-            // lock, so overlapping A's teardown with B's setup would race.
-            await DisconnectAsync().ConfigureAwait(true);
-            if (_shuttingDown)
-            {
-                // The app began to exit while that teardown ran.
-                return;
-            }
+            teardown = DisconnectAsync();
         }
 
         // Claim this attempt. A subsequent disconnect/reconnect bumps _generation,
@@ -295,6 +294,20 @@ public sealed class TunnelsManager : ObservableObject
 
         vm.SetConnecting();
         RefreshCurrentMarkers();
+
+        if (teardown is not null)
+        {
+            // The teardown can take seconds (it includes a running
+            // connection-path query). Claimed first, a newer pick, a
+            // disconnect or the app's exit meanwhile supersedes this attempt
+            // instead of being overridden by it; whichever it was has already
+            // reset this view model.
+            await teardown.ConfigureAwait(true);
+            if (generation != _generation || _shuttingDown)
+            {
+                return;
+            }
+        }
 
         // Queue behind whatever native work is still in flight, and make the
         // next attempt queue behind this one (including any stale disposal).
