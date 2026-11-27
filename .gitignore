@@ -5,8 +5,9 @@ obj/
 [Oo]bj/
 *.user
 
-# Native DLLs staged at build/package time (from ../ezvpn/dist/windows and wintun.net)
-native/*.dll
+# Native DLLs staged at build/package time, one folder per pin (see native/native.targets)
+native/ezvpn-*/
+native/wintun-*/
 
 # MSI / publish output
 publish/
